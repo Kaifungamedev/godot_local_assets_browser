@@ -3,6 +3,7 @@ extends Control
 @onready var Files: FileDialog = $FileDialog
 @onready var asset_path: LineEdit = %AssetsPath
 @onready var grid: GridContainer = %GridContainer
+@onready var backgroundText = %BackgroundText
 @onready var thread1: Thread = Thread.new()
 var settings = EditorInterface.get_editor_settings()
 var items: Array[Dictionary]
@@ -36,15 +37,22 @@ func _on_assets_path_text_changed(new_text: String):
 
 
 func search(s: String):
-	print(s)
+	backgroundText.hide()
+	for c: Control in grid.get_children():
+		c.show()
 	if s == "" or s == null:
-		for c: Control in grid.get_children():
-			c.visible = true
+		return
+	var i: int = 0
+	for c: Control in grid.get_children():
+		if !c.name.to_lower().contains(s.to_lower()):
+			c.hide()
+		else:
+			i += 1
+	if i == 0:
+		backgroundText.text = "Not Found"
+		backgroundText.show()
 	else:
-		for c: Control in grid.get_children():
-			prints(c.name, c.name.contains(s))
-			if !c.name.to_lower().contains(s.to_lower()):
-				c.visible = false
+		backgroundText.hide()
 
 
 func save():
@@ -56,18 +64,39 @@ func save():
 	settings.add_property_info(property_info)
 
 
+func clear_items():
+	for c: Control in grid.get_children():
+		c.queue_free()
+
+
 func get_assets(Path: String):
-	$VBoxContainer/Panel/Label.visible = true
+	var assets
+	backgroundText.text = "Loading"
+	grid.hide()
+	backgroundText.show()
+	if thread1.is_started():
+		await _wait_for_thread_non_blocking(thread1)
 	thread1.start(find_files_recursive.bind(Path, "Preview.png"))
-	while thread1.is_alive():
+	assets = await _wait_for_thread_non_blocking(thread1)
+	if typeof(assets) == TYPE_ARRAY:
+		assets.sort_custom(func(a, b): return a.name.naturalnocasecmp_to(b.name) < 0)
+		items = assets
+		if thread1.is_started():
+			await _wait_for_thread_non_blocking(thread1)
+		thread1.start(add_items.bind(assets))
+		await _wait_for_thread_non_blocking(thread1)
+		prints("Found", assets.size(), "assets.")
+		backgroundText.hide()
+		grid.show()
+
+
+func _wait_for_thread_non_blocking(thread: Thread) -> Variant:
+	while thread.is_alive():
 		await get_tree().process_frame
-	var assets = await thread1.wait_to_finish()
-	prints("Found", assets.size(), "assets.")
-	assets.sort_custom(func(a, b): return a.name.naturalnocasecmp_to(b.name) < 0)
-	items = assets
-	#prints("items", items)
-	$VBoxContainer/Panel/Label.visible = false
-	add_items(assets)
+	if thread.is_started():
+		return await thread.wait_to_finish()
+	else:
+		return FAILED
 
 
 func add_items(_items: Array[Dictionary]):
@@ -79,9 +108,8 @@ func add_items(_items: Array[Dictionary]):
 			item.asset_path = i.path
 			item.root = self
 			item.update()
-			grid.add_child(item)
+			grid.call_deferred("add_child", item)
 			item.name = i.name
-	prints(grid.get_child_count())
 
 
 func find_files_recursive(folder_path: String, file_name: String) -> Array[Dictionary]:
@@ -93,7 +121,6 @@ func find_files_recursive(folder_path: String, file_name: String) -> Array[Dicti
 			var file_or_dir = dir.get_next()
 			if file_or_dir == "":
 				break
-
 			var path = (folder_path + "/" + file_or_dir).replace("//", "/")
 			if dir.current_is_dir():
 				found_files += find_files_recursive(path, file_name)
@@ -129,7 +156,6 @@ func copy_files_recursive(src_path: String, dst_path: String) -> void:
 				copy_files_recursive(src_item_path, dst_item_path)
 			else:
 				# Copy file
-
 				if FileAccess.file_exists(src_item_path):
 					var file_data = FileAccess.get_file_as_bytes(src_item_path)
 					var file = FileAccess.open(dst_item_path, FileAccess.WRITE)

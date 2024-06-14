@@ -16,7 +16,7 @@ config/icon="res://icon.svg"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/local_assets/plugin.cfg")
+enabled=PackedStringArray("res://addons/gdscript_formatter/plugin.cfg", "res://addons/local_assets/plugin.cfg", "res://addons/plugin_refresher/plugin.cfg")
 
 [filesystem]
 
