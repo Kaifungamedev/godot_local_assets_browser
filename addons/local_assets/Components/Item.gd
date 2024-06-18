@@ -21,8 +21,11 @@ func update():
 		await ready
 	_path.text = asset_path
 	_path.tooltip_text = asset_path
-	_icon.texture = asset_icon
-	_icon.tooltip_text = _icon.texture.resource_name
+	if asset_icon:
+		_icon.texture = asset_icon
+		_icon.tooltip_text = _icon.texture.resource_name
+	else:
+		_icon.texture = EditorInterface.get_editor_theme().get_icon("FileBroken", "EditorIcons")
 	_name.text = asset_name
 	_name.tooltip_text = asset_name
 

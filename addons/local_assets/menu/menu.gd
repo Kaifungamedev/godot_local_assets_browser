@@ -5,16 +5,34 @@ extends Control
 @onready var grid: GridContainer = %GridContainer
 @onready var backgroundText = %BackgroundText
 @onready var thread1: Thread = Thread.new()
-var settings = EditorInterface.get_editor_settings()
+var settings: EditorSettings = EditorInterface.get_editor_settings()
 var items: Array[Dictionary]
+const file_extentions = ["png", "jpeg", "jpg", "bmp", "tga", ".webp", "svg"]
 
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	$VBoxContainer/TopBar/path/OpenDir.icon = EditorInterface.get_editor_theme().get_icon("Folder", "EditorIcons")
+	set_up_settings()
 	if settings.has_setting("Local_Assets/asset_dir"):
 		asset_path.text = settings.get_setting("Local_Assets/asset_dir")
 		asset_path.text_changed.emit(asset_path.text)
+
+
+func set_up_settings():
+	if !settings.has_setting("Local_Assets/asset_dir"):
+		set_editor_setting("Local_Assets/asset_dir", "", TYPE_STRING)
+	if !settings.has_setting("Local_Assets/File_preview_names"):
+		set_editor_setting("Local_Assets/File_preview_names", PackedStringArray(["Preview.png"]), TYPE_PACKED_STRING_ARRAY)
+
+
+func set_editor_setting(s_name: String, value: Variant, type: Variant.Type):
+	settings.set_setting(s_name, value)
+	var property_info = {
+		"name": s_name,
+		"type": type,
+	}
+	settings.add_property_info(property_info)
 
 
 func _exit_tree():
@@ -56,12 +74,7 @@ func search(s: String):
 
 
 func save():
-	settings.set_setting("Local_Assets/asset_dir", asset_path.text)
-
-	var property_info = {
-		"name": "Local_Assets/asset_dir", "type": TYPE_STRING, "hint": PROPERTY_HINT_ENUM_SUGGESTION, "hint_string": "Path to the dictionary where the assets are stored"
-	}
-	settings.add_property_info(property_info)
+	set_editor_setting("Local_Assets/asset_dir", asset_path.text, TYPE_STRING)
 
 
 func clear_items():
@@ -70,15 +83,18 @@ func clear_items():
 
 
 func get_assets(Path: String):
-	var assets
+	var assets: Array
 	backgroundText.text = "Loading"
 	grid.hide()
 	backgroundText.show()
 	if thread1.is_started():
 		await _wait_for_thread_non_blocking(thread1)
-	thread1.start(find_files_recursive.bind(Path, "Preview.png"))
+	thread1.start(find_files_recursive.bind(Path))
 	assets = await _wait_for_thread_non_blocking(thread1)
 	if typeof(assets) == TYPE_ARRAY:
+		if assets.is_empty():
+			backgroundText.text = "No assets found."
+			return
 		assets.sort_custom(func(a, b): return a.name.naturalnocasecmp_to(b.name) < 0)
 		items = assets
 		if thread1.is_started():
@@ -112,23 +128,27 @@ func add_items(_items: Array[Dictionary]):
 			item.name = i.name
 
 
-func find_files_recursive(folder_path: String, file_name: String) -> Array[Dictionary]:
+func find_files_recursive(folder_path: String) -> Array[Dictionary]:
+	var file_names: PackedStringArray
+	for f: String in settings.get_setting("Local_Assets/File_preview_names"):
+		file_names.append(f.to_lower())
 	var dir = DirAccess.open(folder_path)
 	var found_files: Array[Dictionary] = []
 	if dir:
-		dir.list_dir_begin()  # Skip hidden files and include navigational markers (., ..)
+		dir.list_dir_begin()
 		while true:
-			var file_or_dir = dir.get_next()
+			var file_or_dir: String = dir.get_next()
 			if file_or_dir == "":
 				break
-			var path = (folder_path + "/" + file_or_dir).replace("//", "/")
+			var path = folder_path.path_join(file_or_dir)
 			if dir.current_is_dir():
-				found_files += find_files_recursive(path, file_name)
+				found_files += find_files_recursive(path)
 			else:
-				if file_or_dir == file_name:
+				if file_or_dir.get_file().get_basename().to_lower() in file_names and file_or_dir.get_extension().to_lower() in file_extentions:
 					var ana: Array = path.get_base_dir().split("/")
-					var an = ana[ana.size() - 1]
-					found_files.append({"image_path": path, "name": an, "path": path.get_base_dir()})
+					var a_name = ana[ana.size() - 1]
+					#print({"image_path": path, "name": a_name, "path": path.get_base_dir()})
+					found_files.append({"image_path": path, "name": a_name, "path": path.get_base_dir()})
 		dir.list_dir_end()
 	return found_files
 
@@ -136,21 +156,16 @@ func find_files_recursive(folder_path: String, file_name: String) -> Array[Dicti
 func copy_files_recursive(src_path: String, dst_path: String) -> void:
 	var src_dir = DirAccess.open(src_path)
 	var dst_dir: DirAccess = DirAccess.open("res://")
-
 	if src_dir.get_open_error() == OK:
-		# Ensure destination directory exists
 		if !dst_dir.dir_exists(dst_path):
 			dst_dir.make_dir_recursive(dst_path)
-
-		src_dir.list_dir_begin()  # Skip hidden files and include navigational markers (., ..)
+		src_dir.list_dir_begin()
 		while true:
 			var file_or_dir = src_dir.get_next()
 			if file_or_dir == "":
 				break
-
 			var src_item_path = src_path + "/" + file_or_dir
 			var dst_item_path = dst_path + "/" + file_or_dir
-
 			if src_dir.current_is_dir():
 				# Recursively copy subdirectory
 				copy_files_recursive(src_item_path, dst_item_path)
