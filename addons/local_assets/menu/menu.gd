@@ -141,8 +141,9 @@ func find_files_recursive(folder_path: String) -> Array[Dictionary]:
 			for extention in file_extentions:
 				var filename = "%s.%s" % [file, extention]
 				if dir.file_exists(filename):
-					var ana: Array = path.get_base_dir().split("/")
-					var a_name = ana[ana.size() - 1]
+					var ana: Array = path.split("/")
+					var a_name = ana.back()
+					print(a_name)
 					#print({"image_path": path, "name": a_name, "path": path.get_base_dir()})
 					found_files.append({"image_path": path.path_join(filename), "name": a_name, "path": path})
 		for folder in dir.get_directories():
