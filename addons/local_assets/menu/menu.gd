@@ -7,7 +7,8 @@ extends Control
 @onready var thread1: Thread = Thread.new()
 var settings: EditorSettings = EditorInterface.get_editor_settings()
 var items: Array[Dictionary]
-const file_extentions = ["png", "jpeg", "jpg", "bmp", "tga", ".webp", "svg"]
+const file_extentions = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"]
+var file_names: PackedStringArray
 
 
 # Called when the node enters the scene tree for the first time.
@@ -17,6 +18,8 @@ func _ready():
 	if settings.has_setting("Local_Assets/asset_dir"):
 		asset_path.text = settings.get_setting("Local_Assets/asset_dir")
 		asset_path.text_changed.emit(asset_path.text)
+	if settings.has_setting("Local_Assets/asset_dir"):
+		file_names = settings.get_setting("Local_Assets/File_preview_names")
 
 
 func set_up_settings():
@@ -58,7 +61,7 @@ func search(s: String):
 	backgroundText.hide()
 	for c: Control in grid.get_children():
 		c.show()
-	if s == "" or s == null:
+	if s.is_empty():
 		return
 	var i: int = 0
 	for c: Control in grid.get_children():
@@ -129,27 +132,21 @@ func add_items(_items: Array[Dictionary]):
 
 
 func find_files_recursive(folder_path: String) -> Array[Dictionary]:
-	var file_names: PackedStringArray
-	for f: String in settings.get_setting("Local_Assets/File_preview_names"):
-		file_names.append(f.to_lower())
+	file_names = settings.get_setting("Local_Assets/File_preview_names")
 	var dir = DirAccess.open(folder_path)
 	var found_files: Array[Dictionary] = []
 	if dir:
-		dir.list_dir_begin()
-		while true:
-			var file_or_dir: String = dir.get_next()
-			if file_or_dir == "":
-				break
-			var path = folder_path.path_join(file_or_dir)
-			if dir.current_is_dir():
-				found_files += find_files_recursive(path)
-			else:
-				if file_or_dir.get_file().get_basename().to_lower() in file_names and file_or_dir.get_extension().to_lower() in file_extentions:
+		var path = dir.get_current_dir(true)
+		for file in file_names:
+			for extention in file_extentions:
+				var filename = "%s.%s" % [file, extention]
+				if dir.file_exists(filename):
 					var ana: Array = path.get_base_dir().split("/")
 					var a_name = ana[ana.size() - 1]
 					#print({"image_path": path, "name": a_name, "path": path.get_base_dir()})
-					found_files.append({"image_path": path, "name": a_name, "path": path.get_base_dir()})
-		dir.list_dir_end()
+					found_files.append({"image_path": path.path_join(filename), "name": a_name, "path": path})
+		for folder in dir.get_directories():
+			found_files.append_array(find_files_recursive(path.path_join(folder)))
 	return found_files
 
 

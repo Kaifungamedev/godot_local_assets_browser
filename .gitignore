@@ -3,3 +3,5 @@
 # addons i used for dev
 addons/plugin_refresher/*
 addons/gdscript_formatter/*
+# not needed
+project.godot
