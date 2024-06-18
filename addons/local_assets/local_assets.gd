@@ -1,9 +1,8 @@
 @tool
 extends EditorPlugin
 
-
 const MainPanel = preload("menu/menu.tscn")
-
+const Icon = preload("res://addons/local_assets/Icon.svg")
 var main_panel_instance
 
 
@@ -35,4 +34,4 @@ func _get_plugin_name():
 
 func _get_plugin_icon():
 	# Must return some kind of Texture for the icon.
-	return EditorInterface.get_editor_theme().get_icon("Load", "EditorIcons")
+	return Icon
