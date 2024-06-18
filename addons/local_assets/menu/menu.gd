@@ -119,10 +119,11 @@ func _wait_for_thread_non_blocking(thread: Thread) -> Variant:
 
 
 func add_items(_items: Array[Dictionary]):
-	for i in _items:
+	for i: Dictionary in _items:
 		var item = load("res://addons/local_assets/Components/Item.tscn").instantiate()
 		if item != null:
-			item.asset_icon = ImageTexture.create_from_image(Image.load_from_file(i.image_path))
+			if i.has("image_path"):
+				item.asset_icon = ImageTexture.create_from_image(Image.load_from_file(i.image_path))
 			item.asset_name = i.name
 			item.asset_path = i.path
 			item.root = self
@@ -137,15 +138,17 @@ func find_files_recursive(folder_path: String) -> Array[Dictionary]:
 	var found_files: Array[Dictionary] = []
 	if dir:
 		var path = dir.get_current_dir(true)
+		if dir.file_exists("Asset.json"):
+			found_files.append(JSON.parse_string(FileAccess.open(path.path_join("Asset.json"), FileAccess.READ).get_as_text()))
+			return found_files
 		for file in file_names:
 			for extention in file_extentions:
 				var filename = "%s.%s" % [file, extention]
 				if dir.file_exists(filename):
 					var ana: Array = path.split("/")
 					var a_name = ana.back()
-					print(a_name)
-					#print({"image_path": path, "name": a_name, "path": path.get_base_dir()})
 					found_files.append({"image_path": path.path_join(filename), "name": a_name, "path": path})
+					return found_files
 		for folder in dir.get_directories():
 			found_files.append_array(find_files_recursive(path.path_join(folder)))
 	return found_files
