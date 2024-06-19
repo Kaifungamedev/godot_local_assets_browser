@@ -9,8 +9,8 @@ An asset browser for local assets
 4. The assets should be in `res://Assets/{asset_name}`.  
 
 ## Settings  
-	`Local_Assets/asset_dir` - directory to look for the assets. mainly used to keep the same directory across projects
-	`Local_Assets/File_preview_names` - An array of names for preview files. files must be images.  
+`Local_Assets/asset_dir` - directory to look for the assets. mainly used to keep the same directory across projects
+`Local_Assets/File_preview_names` - An array of names for preview files. files must be images.  
 
 ## Troubleshooting  
 My assets are not showing up -> this is probably caused by the addon can't find a file name that's found in its settings, you can add file names in the editor settings `Local_Assets/File_preview_names`.   
