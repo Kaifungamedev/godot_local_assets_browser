@@ -13,10 +13,10 @@ An asset browser for local assets
 `Local_Assets/File_preview_names` - An array of names for preview files. files must be images.  
 
 ## Troubleshooting  
-Q. My assets are not showing up.  
-A. The addon looks for image files with a specific name if it can't find a file with the correct name it skips it, you can add file names in  `Local_Assets/File_preview_names`.    
- Alternatively, you can force a directory to be an asset path by putting a file named  `Assets.json`. The `Assets.json` file must contain the following properties:  
-	- `path` - the base path for the asset everything in here will be copied to your project  
-	- `name` - the name of the asset that will appear in the browser  
-	- (Optional) `image_path` - Preview image
-![image](https://github.com/Kaifungamedev/godot_local_assets_browser/assets/110266485/71d9b5d4-f986-4e36-8547-bb60be1c3f54)
+1. If assets don't show up this could be because the addon looks for image files with a specific name if it can't find a file with that name it skips it. You can add file names in  `EditorSettings -> Local_Assets -> File_preview_names`.     
+	Alternatively, you can force a directory to be an asset by putting a file named  `Assets.json` in the folder you want to be an asset.  
+	The `Assets.json` file must contain the following properties:  
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- `path` - the base path for the asset everything in here will be copied to your project  
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- `name` - the name of the asset that will appear in the browser  
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- (Optional) `image_path` - Preview image
+	![image](https://github.com/Kaifungamedev/godot_local_assets_browser/assets/110266485/71d9b5d4-f986-4e36-8547-bb60be1c3f54)
