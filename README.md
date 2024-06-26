@@ -13,8 +13,9 @@ An asset browser for local assets
 `Local_Assets/File_preview_names` - An array of names for preview files. files must be images.  
 
 ## Troubleshooting  
-My assets are not showing up -> this is probably caused by the addon can't find a file name that's found in its settings, you can add file names in the editor settings `Local_Assets/File_preview_names`.   
-  If you don't have a preview file you can add a file named `Assets.json`. The `Assets.json` file must contain 2 properties   
+Q. My assets are not showing up.  
+A. The addon looks for image files with a specific name if it can't find a file with the correct name it skips it, you can add file names in  `Local_Assets/File_preview_names`.    
+ Alternatively, you can force a directory to be an asset path by putting a file named  `Assets.json`. The `Assets.json` file must contain the following properties:  
 	- `path` - the base path for the asset everything in here will be copied to your project  
 	- `name` - the name of the asset that will appear in the browser  
 	- (Optional) `image_path` - Preview image
