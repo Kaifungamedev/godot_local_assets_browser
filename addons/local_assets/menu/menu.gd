@@ -1,41 +1,46 @@
 @tool
-extends Control
+class_name Local_Assets extends Control
 @onready var Files: FileDialog = $FileDialog
-@onready var asset_path: LineEdit = %AssetsPath
+@onready var assetPath: LineEdit = %AssetsPath
 @onready var grid: GridContainer = %GridContainer
 @onready var backgroundText = %BackgroundText
 @onready var thread1: Thread = Thread.new()
-var settings: EditorSettings = EditorInterface.get_editor_settings()
+var editorSettings: EditorSettings = EditorInterface.get_editor_settings()
 var items: Array[Dictionary]
-const file_extentions = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"]
 var file_names: PackedStringArray
+var useFirstImage: bool
+const fileExtentions = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"]
 
 
-# Called when the node enters the scene tree for the first time.
 func _ready():
+	editorSettings.settings_changed.connect(eSettings_changed)
 	$VBoxContainer/TopBar/path/OpenDir.icon = EditorInterface.get_editor_theme().get_icon("Folder", "EditorIcons")
 	set_up_settings()
-	if settings.has_setting("Local_Assets/asset_dir"):
-		asset_path.text = settings.get_setting("Local_Assets/asset_dir")
-		asset_path.text_changed.emit(asset_path.text)
-	if settings.has_setting("Local_Assets/asset_dir"):
-		file_names = settings.get_setting("Local_Assets/File_preview_names")
+	eSettings_changed()
+
+
+func eSettings_changed():
+	if editorSettings.has_setting("Local_Assets/asset_dir"):
+		assetPath.text = editorSettings.get_setting("Local_Assets/asset_dir")
+		assetPath.text_changed.emit(assetPath.text)
+	if editorSettings.has_setting("Local_Assets/asset_dir"):
+		file_names = editorSettings.get_setting("Local_Assets/File_preview_names")
+	if editorSettings.has_setting("Local_Assets/use_first_image_found"):
+		useFirstImage = editorSettings.get_setting("Local_Assets/use_first_image_found")
 
 
 func set_up_settings():
-	if !settings.has_setting("Local_Assets/asset_dir"):
+	if !editorSettings.has_setting("Local_Assets/asset_dir"):
 		set_editor_setting("Local_Assets/asset_dir", "", TYPE_STRING)
-	if !settings.has_setting("Local_Assets/File_preview_names"):
-		set_editor_setting("Local_Assets/File_preview_names", PackedStringArray(["Preview.png"]), TYPE_PACKED_STRING_ARRAY)
+	if !editorSettings.has_setting("Local_Assets/File_preview_names"):
+		set_editor_setting("Local_Assets/File_preview_names", PackedStringArray(["Preview", "Asset"]), TYPE_PACKED_STRING_ARRAY)
+	if !editorSettings.has_setting("Local_Assets/use_first_image_found"):
+		set_editor_setting("Local_Assets/use_first_image_found", false, TYPE_BOOL)
 
 
 func set_editor_setting(s_name: String, value: Variant, type: Variant.Type):
-	settings.set_setting(s_name, value)
-	var property_info = {
-		"name": s_name,
-		"type": type,
-	}
-	settings.add_property_info(property_info)
+	editorSettings.set_setting(s_name, value)
+	editorSettings.add_property_info({"name": s_name, "type": type})
 
 
 func _exit_tree():
@@ -46,12 +51,11 @@ func _exit_tree():
 func _on_open_dir_pressed():
 	Files.show()
 	var f = await Files.dir_selected
-	asset_path.text = f
+	assetPath.text = f
 	_on_assets_path_text_changed(f)
 
 
 func _on_assets_path_text_changed(new_text: String):
-	save()
 	for child in grid.get_children():
 		child.queue_free()
 	get_assets(new_text)
@@ -77,7 +81,7 @@ func search(s: String):
 
 
 func save():
-	set_editor_setting("Local_Assets/asset_dir", asset_path.text, TYPE_STRING)
+	set_editor_setting("Local_Assets/asset_dir", assetPath.text, TYPE_STRING)
 
 
 func clear_items():
@@ -86,14 +90,13 @@ func clear_items():
 
 
 func get_assets(Path: String):
-	var assets: Array
 	backgroundText.text = "Loading"
 	grid.hide()
 	backgroundText.show()
 	if thread1.is_started():
 		await _wait_for_thread_non_blocking(thread1)
 	thread1.start(find_files_recursive.bind(Path))
-	assets = await _wait_for_thread_non_blocking(thread1)
+	var assets = await _wait_for_thread_non_blocking(thread1)
 	if typeof(assets) == TYPE_ARRAY:
 		if assets.is_empty():
 			backgroundText.text = "No assets found."
@@ -102,9 +105,11 @@ func get_assets(Path: String):
 		items = assets
 		if thread1.is_started():
 			await _wait_for_thread_non_blocking(thread1)
-		thread1.start(add_items.bind(assets))
+		thread1.start(add_items.bind(items))
 		await _wait_for_thread_non_blocking(thread1)
+
 		prints("Found", assets.size(), "assets.")
+		save()
 		backgroundText.hide()
 		grid.show()
 
@@ -120,20 +125,19 @@ func _wait_for_thread_non_blocking(thread: Thread) -> Variant:
 
 func add_items(_items: Array[Dictionary]):
 	for i: Dictionary in _items:
-		var item = load("res://addons/local_assets/Components/Item.tscn").instantiate()
+		var item: LocalAssetsItem = load("res://addons/local_assets/Components/Item.tscn").instantiate()
 		if item != null:
 			if i.has("image_path"):
-				item.asset_icon = ImageTexture.create_from_image(Image.load_from_file(i.image_path))
+				item.asset_icon = Image.load_from_file(i.image_path)
 			item.asset_name = i.name
 			item.asset_path = i.path
 			item.root = self
 			item.update()
 			grid.call_deferred("add_child", item)
-			item.name = i.name
 
 
 func find_files_recursive(folder_path: String) -> Array[Dictionary]:
-	file_names = settings.get_setting("Local_Assets/File_preview_names")
+	file_names = editorSettings.get_setting("Local_Assets/File_preview_names")
 	var dir = DirAccess.open(folder_path)
 	var found_files: Array[Dictionary] = []
 	if dir:
@@ -142,12 +146,19 @@ func find_files_recursive(folder_path: String) -> Array[Dictionary]:
 			found_files.append(JSON.parse_string(FileAccess.open(path.path_join("Asset.json"), FileAccess.READ).get_as_text()))
 			return found_files
 		for file in file_names:
-			for extention in file_extentions:
+			for extention in fileExtentions:
 				var filename = "%s.%s" % [file, extention]
 				if dir.file_exists(filename):
 					var ana: Array = path.split("/")
 					var a_name = ana.back()
 					found_files.append({"image_path": path.path_join(filename), "name": a_name, "path": path})
+					return found_files
+		if useFirstImage:
+			for file in dir.get_files():
+				if file.get_extension() in fileExtentions:
+					var ana: Array = path.split("/")
+					var a_name = ana.back()
+					found_files.append({"image_path": path.path_join(file), "name": a_name, "path": path})
 					return found_files
 		for folder in dir.get_directories():
 			found_files.append_array(find_files_recursive(path.path_join(folder)))
