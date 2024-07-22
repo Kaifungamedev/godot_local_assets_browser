@@ -1,7 +1,6 @@
 @tool
 extends EditorPlugin
-
-const MainPanel = preload("menu/menu.tscn")
+var MainPanel: PackedScene = load("res://addons/local_assets/menu/menu.tscn")
 const Icon = preload("res://addons/local_assets/Icon.svg")
 var main_panel_instance
 

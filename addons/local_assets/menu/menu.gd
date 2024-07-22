@@ -9,17 +9,19 @@ var editorSettings: EditorSettings = EditorInterface.get_editor_settings()
 var items: Array[Dictionary]
 var file_names: PackedStringArray
 var useFirstImage: bool
+var useUniformImageSize: bool
+var uniformImageSize: Vector2i
 const fileExtentions = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"]
 
 
 func _ready():
-	editorSettings.settings_changed.connect(eSettings_changed)
+	editorSettings.settings_changed.connect(_eSettings_changed)
 	$VBoxContainer/TopBar/path/OpenDir.icon = EditorInterface.get_editor_theme().get_icon("Folder", "EditorIcons")
 	set_up_settings()
-	eSettings_changed()
+	_eSettings_changed()
 
 
-func eSettings_changed():
+func _eSettings_changed():
 	if editorSettings.has_setting("Local_Assets/asset_dir"):
 		assetPath.text = editorSettings.get_setting("Local_Assets/asset_dir")
 		assetPath.text_changed.emit(assetPath.text)
@@ -27,6 +29,10 @@ func eSettings_changed():
 		file_names = editorSettings.get_setting("Local_Assets/File_preview_names")
 	if editorSettings.has_setting("Local_Assets/use_first_image_found"):
 		useFirstImage = editorSettings.get_setting("Local_Assets/use_first_image_found")
+	if editorSettings.has_setting("Local_Assets/use_uniform_image_size"):
+		useUniformImageSize = editorSettings.get_setting("Local_Assets/use_uniform_image_size")
+	if editorSettings.has_setting("Local_Assets/uniform_image_size"):
+		uniformImageSize = editorSettings.get_setting("Local_Assets/uniform_image_size")
 
 
 func set_up_settings():
@@ -36,6 +42,10 @@ func set_up_settings():
 		set_editor_setting("Local_Assets/File_preview_names", PackedStringArray(["Preview", "Asset"]), TYPE_PACKED_STRING_ARRAY)
 	if !editorSettings.has_setting("Local_Assets/use_first_image_found"):
 		set_editor_setting("Local_Assets/use_first_image_found", false, TYPE_BOOL)
+	if !editorSettings.has_setting("Local_Assets/use_uniform_image_size"):
+		set_editor_setting("Local_Assets/use_uniform_image_size", false, TYPE_BOOL)
+	if !editorSettings.has_setting("Local_Assets/uniform_image_size"):
+		set_editor_setting("Local_Assets/uniform_image_size", Vector2i(918, 515), TYPE_VECTOR2I)
 
 
 func set_editor_setting(s_name: String, value: Variant, type: Variant.Type):
@@ -45,7 +55,7 @@ func set_editor_setting(s_name: String, value: Variant, type: Variant.Type):
 
 func _exit_tree():
 	if thread1.is_started():
-		thread1.wait_to_finish()
+		await thread1.wait_to_finish()
 
 
 func _on_open_dir_pressed():
@@ -61,23 +71,22 @@ func _on_assets_path_text_changed(new_text: String):
 	get_assets(new_text)
 
 
-func search(s: String):
+func search(search_string: String):
 	backgroundText.hide()
 	for c: Control in grid.get_children():
 		c.show()
-	if s.is_empty():
+	if search_string.is_empty():
 		return
-	var i: int = 0
-	for c: Control in grid.get_children():
-		if !c.name.to_lower().contains(s.to_lower()):
-			c.hide()
+	var found: bool = false
+	for node: LocalAssetsItem in grid.get_children():
+		if node.asset_name.to_lower().find(search_string.to_lower()) != -1:
+			node.visible = true
+			found = true
 		else:
-			i += 1
-	if i == 0:
+			node.visible = false
+	if !found:
 		backgroundText.text = "Not Found"
 		backgroundText.show()
-	else:
-		backgroundText.hide()
 
 
 func save():
@@ -127,11 +136,11 @@ func add_items(_items: Array[Dictionary]):
 	for i: Dictionary in _items:
 		var item: LocalAssetsItem = load("res://addons/local_assets/Components/Item.tscn").instantiate()
 		if item != null:
+			item.root = self
 			if i.has("image_path"):
 				item.asset_icon = Image.load_from_file(i.image_path)
 			item.asset_name = i.name
 			item.asset_path = i.path
-			item.root = self
 			item.update()
 			grid.call_deferred("add_child", item)
 
@@ -145,6 +154,7 @@ func find_files_recursive(folder_path: String) -> Array[Dictionary]:
 		if dir.file_exists("Asset.json"):
 			found_files.append(JSON.parse_string(FileAccess.open(path.path_join("Asset.json"), FileAccess.READ).get_as_text()))
 			return found_files
+
 		for file in file_names:
 			for extention in fileExtentions:
 				var filename = "%s.%s" % [file, extention]

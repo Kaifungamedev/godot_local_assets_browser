@@ -1,12 +1,12 @@
 @tool
-extends Panel
+extends PanelContainer
 class_name LocalAssetsItem
 var asset_name: String
 var asset_path: String
 var asset_icon: Image
 var root: Node
-
 var is_ready: bool = false
+var useUniformImageSize: bool = false
 @onready var _icon: TextureRect = %Icon
 @onready var _name: Label = %Name
 @onready var _path: Button = %Path
@@ -42,6 +42,6 @@ func _on_import_pressed():
 func make_icon(icon: Image) -> ImageTexture:
 	var texture: ImageTexture = ImageTexture.new()
 	var _icon = icon
-	if icon.get_size() > Vector2i(918, 515):
-		icon.resize(918, 515, Image.INTERPOLATE_NEAREST)
+	if root.useUniformImageSize:
+		icon.resize(root.uniformImageSize.x, root.uniformImageSize.y, Image.INTERPOLATE_NEAREST)
 	return texture.create_from_image(icon)
