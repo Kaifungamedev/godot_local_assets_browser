@@ -5,6 +5,7 @@ var asset_name: String
 var asset_path: String
 var asset_icon: Image
 var root: Node
+var tags: Array
 var is_ready: bool = false
 var useUniformImageSize: bool = false
 @onready var _icon: TextureRect = %Icon
@@ -29,6 +30,17 @@ func update():
 		_icon.texture = EditorInterface.get_editor_theme().get_icon("FileBroken", "EditorIcons")
 	_name.text = asset_name
 	_name.tooltip_text = asset_name
+	if tags:
+		_update_tags()
+
+
+func _update_tags():
+	for c in %Tags.get_children():
+		c.queue_free()
+	for tag in tags:
+		var tagNode = load("res://addons/local_assets/Components/Tag/Tag.tscn").instantiate()
+		tagNode.text = tag
+		%Tags.call_thread_safe("add_child", tagNode)
 
 
 func _on_path_pressed():

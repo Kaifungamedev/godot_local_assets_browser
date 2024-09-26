@@ -73,17 +73,45 @@ func _on_assets_path_text_changed(new_text: String):
 
 func search(search_string: String):
 	backgroundText.hide()
+
 	for c: Control in grid.get_children():
 		c.show()
 	if search_string.is_empty():
 		return
+
 	var found: bool = false
+	search_string = search_string.to_lower()
+	var tag_search_term: String = ""
+	var tag_search_pattern = "tag:"
+	var search_terms: Array = search_string.split(" ") as Array
+
+	for term in search_terms:
+		if term.begins_with(tag_search_pattern):
+			tag_search_term = term.substr(tag_search_pattern.length())
+			search_terms.erase(term)
+			break
+	var name_search_string: String
+	for i: String in search_terms:
+		name_search_string += i + " "
+	name_search_string = name_search_string.strip_edges()
+
 	for node: LocalAssetsItem in grid.get_children():
-		if node.asset_name.to_lower().find(search_string.to_lower()) != -1:
+		var name_found = false
+		var tag_found = false
+		if tag_search_term != "":
+			for tag in node.tags:
+				if tag.to_lower() == tag_search_term:
+					tag_found = true
+					break
+		if name_search_string != "":
+			if node.asset_name.to_lower().find(name_search_string) != -1:
+				name_found = true
+		if (tag_search_term != "" and name_found and tag_found) or (tag_search_term == "" and name_found):
 			node.visible = true
 			found = true
 		else:
 			node.visible = false
+
 	if !found:
 		backgroundText.text = "Not Found"
 		backgroundText.show()
@@ -116,7 +144,6 @@ func get_assets(Path: String):
 			await _wait_for_thread_non_blocking(thread1)
 		thread1.start(add_items.bind(items))
 		await _wait_for_thread_non_blocking(thread1)
-
 		prints("Found", assets.size(), "assets.")
 		save()
 		backgroundText.hide()
@@ -134,11 +161,12 @@ func _wait_for_thread_non_blocking(thread: Thread) -> Variant:
 
 func add_items(_items: Array[Dictionary]):
 	for i: Dictionary in _items:
-		var item: LocalAssetsItem = load("res://addons/local_assets/Components/Item.tscn").instantiate()
+		var item: LocalAssetsItem = load("res://addons/local_assets/Components/Item/Item.tscn").instantiate()
 		if item != null:
 			item.root = self
 			if i.has("image_path"):
 				item.asset_icon = Image.load_from_file(i.image_path)
+			item.tags = i.get("tags", [])
 			item.asset_name = i.name
 			item.asset_path = i.path
 			item.update()
