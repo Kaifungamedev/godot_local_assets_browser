@@ -181,18 +181,23 @@ func find_files_recursive(folder_path: String) -> Array[Dictionary]:
 	if dir:
 		var path = dir.get_current_dir(true)
 		if dir.file_exists("Asset.json"):
-			found_files.append(JSON.parse_string(FileAccess.open(path.path_join("Asset.json"), FileAccess.READ).get_as_text()))
+			found_files.append(load(path.path_join("Asset.json")).data)
 			return found_files
-
 		for file in file_names:
 			for extention in fileExtentions:
 				var filename = "%s.%s" % [file, extention]
 				var foldername = (dir.get_current_dir().get_base_dir().replace("\\", "/").split("/") as Array).back()
 				var folderfilename = "%s.%s" % [foldername, extention]
-				if dir.file_exists(filename) or dir.file_exists(folderfilename):
+				if dir.file_exists(filename):
 					var ana: Array = path.split("/")
 					var a_name = ana.back()
 					found_files.append({"image_path": path.path_join(filename), "name": a_name, "path": path})
+					return found_files
+				if dir.file_exists(folderfilename):
+					print("filefonder name")
+					var ana: Array = path.split("/")
+					var a_name = ana.back()
+					found_files.append({"image_path": path.path_join(folderfilename), "name": a_name, "path": path})
 					return found_files
 		if useFirstImage:
 			for file in dir.get_files():
