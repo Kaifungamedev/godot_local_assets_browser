@@ -6,7 +6,7 @@ var main_panel_instance
 
 
 func _enter_tree():
-	main_panel_instance = MainPanel.instantiate()
+	main_panel_instance = load("res://addons/local_assets/menu/menu.tscn").instantiate()
 	# Add the main panel to the editor's main viewport.
 	EditorInterface.get_editor_main_screen().add_child(main_panel_instance)
 	# Hide the main panel. Very much required.

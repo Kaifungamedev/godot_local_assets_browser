@@ -40,7 +40,7 @@ func _update_tags():
 	for tag in tags:
 		var tagNode = load("res://addons/local_assets/Components/Tag/Tag.tscn").instantiate()
 		tagNode.text = tag
-		%Tags.call_thread_safe("add_child", tagNode)
+		%Tags.call_deferred_thread_group("add_child", tagNode)
 
 
 func _on_path_pressed():

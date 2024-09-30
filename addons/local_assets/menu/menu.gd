@@ -148,6 +148,7 @@ func get_assets(Path: String):
 		save()
 		backgroundText.hide()
 		grid.show()
+		await _wait_for_thread_non_blocking(thread1)
 
 
 func _wait_for_thread_non_blocking(thread: Thread) -> Variant:
@@ -170,7 +171,7 @@ func add_items(_items: Array[Dictionary]):
 			item.asset_name = i.name
 			item.asset_path = i.path
 			item.update()
-			grid.call_deferred("add_child", item)
+			grid.call_deferred_thread_group("add_child", item)
 
 
 func find_files_recursive(folder_path: String) -> Array[Dictionary]:
@@ -186,7 +187,9 @@ func find_files_recursive(folder_path: String) -> Array[Dictionary]:
 		for file in file_names:
 			for extention in fileExtentions:
 				var filename = "%s.%s" % [file, extention]
-				if dir.file_exists(filename):
+				var foldername = (dir.get_current_dir().get_base_dir().replace("\\", "/").split("/") as Array).back()
+				var folderfilename = "%s.%s" % [foldername, extention]
+				if dir.file_exists(filename) or dir.file_exists(folderfilename):
 					var ana: Array = path.split("/")
 					var a_name = ana.back()
 					found_files.append({"image_path": path.path_join(filename), "name": a_name, "path": path})
