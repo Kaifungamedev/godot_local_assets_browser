@@ -7,6 +7,9 @@ An asset browser for local assets
 2. Wait for all the assets to appear.  
 3. Find the asset you want and click `import`.  
 4. The assets should be in `res://Assets/{asset_name}`.  
+> [!CAUTION]  
+> Currently loading hundreds of gigabytes of assets may crash the editor.  
+> A fix is in the works. 
 
 ## Settings  
 `Local_Assets/asset_dir` - directory to look for the assets. mainly used to keep the same directory across projects
