@@ -48,7 +48,7 @@ func _on_path_pressed():
 
 
 func _on_import_pressed():
-	root.copy_files_recursive(asset_path, "res://Assets/%s" % asset_name)
+	LocalAssetsAssetCopier.copy_assets(asset_path, "res://Assets/%s" % asset_name)
 
 
 func make_icon(icon: Image) -> ImageTexture:
