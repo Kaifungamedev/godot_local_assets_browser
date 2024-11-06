@@ -24,8 +24,8 @@ An asset browser for local assets
 	The `Assets.json` file must contain the following properties:  
 		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- `path` - the base path for the asset everything in here will be copied to your project  
 		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- `name` - the name of the asset that will appear in the browser  
-		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- (Optional) `image_path` - Preview image
-		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- (Optional) `taga` - asset tags
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- (Optional) `image_path` - Preview image  
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- (Optional) `tags` - asset tags
 	![image](https://github.com/Kaifungamedev/godot_local_assets_browser/assets/110266485/71d9b5d4-f986-4e36-8547-bb60be1c3f54)
 
 ## Known Issues
