@@ -4,18 +4,26 @@ class_name LocalAssetsItem
 var asset_name: String
 var asset_path: String
 var asset_icon: Image
+var asset_icon_path: String:
+	set = set_image_path
 var root: Node
 var tags: Array
 var is_ready: bool = false
 var useUniformImageSize: bool = false
-@onready var _icon: TextureRect = %Icon
-@onready var _name: Label = %Name
-@onready var _path: Button = %Path
+@onready var _icon: TextureRect = $MarginContainer/VBoxContainer/HBoxContainer/Icon
+@onready var _name: Label = $MarginContainer/VBoxContainer/HBoxContainer/VBoxContainer/Name
+@onready var _path: Button = $MarginContainer/VBoxContainer/HBoxContainer/VBoxContainer/Path
+@onready var _tags: HBoxContainer = $MarginContainer/VBoxContainer/Tags
 
 
 func _ready():
 	_path.icon = EditorInterface.get_editor_theme().get_icon("Load", "EditorIcons")
 	is_ready = true
+
+
+func set_image_path(path):
+	if path != null:
+		asset_icon = Image.load_from_file(path)
 
 
 func update():
@@ -35,12 +43,12 @@ func update():
 
 
 func _update_tags():
-	for c in %Tags.get_children():
+	for c in _tags.get_children():
 		c.queue_free()
 	for tag in tags:
 		var tagNode = load("res://addons/local_assets/Components/Tag/Tag.tscn").instantiate()
 		tagNode.text = tag
-		%Tags.call_deferred_thread_group("add_child", tagNode)
+		_tags.call_deferred_thread_group("add_child", tagNode)
 
 
 func _on_path_pressed():

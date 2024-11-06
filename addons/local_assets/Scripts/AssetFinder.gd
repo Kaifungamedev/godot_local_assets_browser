@@ -3,9 +3,12 @@ extends RefCounted
 class_name LocalAssetsAssetFinder
 
 var _file_index: int = 1
-var _save_path: String = EditorInterface.get_editor_paths().get_cache_dir().path_join("LocalAssets")
+var _cache_path: String = EditorInterface.get_editor_paths().get_cache_dir().path_join(
+	"LocalAssets"
+)
 var _chunk: Array = []
 var _max_chunk_size: int = 50  # Define the maximum size of the chunk before saving
+var fileExtentions: Array = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"]
 
 
 func find_assets(
@@ -14,7 +17,25 @@ func find_assets(
 	useFirstImage: bool,
 	useUniformImageSize: bool,
 	uniformImageSize: Vector2i,
-	fileExtentions: Array = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"],
+	max_chunk_size: int = 50  # You can pass chunk size as a parameter
+):
+	_collect_assets(
+		folder_path,
+		file_names,
+		useFirstImage,
+		useUniformImageSize,
+		uniformImageSize,
+		_max_chunk_size
+	)
+	LocalAssetsAssetSorter.sort(_cache_path.path_join("assetGroup"), _max_chunk_size)
+
+
+func _collect_assets(
+	folder_path: String,
+	file_names: PackedStringArray,
+	useFirstImage: bool,
+	useUniformImageSize: bool,
+	uniformImageSize: Vector2i,
 	max_chunk_size: int = 50  # You can pass chunk size as a parameter
 ) -> void:
 	_max_chunk_size = max_chunk_size
@@ -27,7 +48,10 @@ func find_assets(
 		for file in file_names:
 			for extention in fileExtentions:
 				var filename = "%s.%s" % [file, extention]
-				var foldername = (dir.get_current_dir().get_base_dir().replace("\\", "/").split("/") as Array).back()
+				var foldername = (
+					(dir.get_current_dir().get_base_dir().replace("\\", "/").split("/") as Array)
+					. back()
+				)
 				var folderfilename = "%s.%s" % [foldername, extention]
 				if dir.file_exists(filename):
 					_add_asset(path, filename)
@@ -43,7 +67,14 @@ func find_assets(
 		var folders = dir.get_directories() as Array
 		folders.sort_custom(func(a, b): return a.naturalnocasecmp_to(b) < 0)
 		for folder in folders:
-			find_assets(path.path_join(folder), file_names, useFirstImage, useUniformImageSize, uniformImageSize, fileExtentions, _max_chunk_size)
+			_collect_assets(
+				path.path_join(folder),
+				file_names,
+				useFirstImage,
+				useUniformImageSize,
+				uniformImageSize,
+				_max_chunk_size
+			)
 
 
 func _add_asset(path: String, filename: String) -> void:
@@ -60,9 +91,12 @@ func _add_to_chunk(asset_data: Dictionary) -> void:
 
 
 func _save_chunk(chunk: Array):
-	if not DirAccess.dir_exists_absolute(_save_path):
-		DirAccess.make_dir_recursive_absolute(_save_path)
-	var file = FileAccess.open(_save_path.path_join("assetGroup_%s.json" % str(_file_index)), FileAccess.WRITE)
+	if not DirAccess.dir_exists_absolute(_cache_path.path_join("assetGroup")):
+		DirAccess.make_dir_recursive_absolute(_cache_path.path_join("assetGroup"))
+	var file = FileAccess.open(
+		_cache_path.path_join("assetGroup").path_join("assetGroup_%s.json" % str(_file_index)),
+		FileAccess.WRITE
+	)
 	file.store_string(JSON.stringify(chunk))
 	file.close()
 	_file_index += 1  # Increment the file index for the next chunk

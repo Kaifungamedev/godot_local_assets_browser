@@ -28,11 +28,14 @@ static func copy_assets(src_path: String, dst_path: String) -> void:
 						file.store_buffer(file_data)
 						file.close()
 					else:
-						print("Failed to open destination file for writing: ", dst_item_path)
+						printerr(
+							"LocalAssets: Failed to open destination file for writing: ",
+							dst_item_path
+						)
 				else:
-					print("Failed to open source file for reading: ", src_item_path)
+					printerr("LocalAssets: Failed to open source file for reading: ", src_item_path)
 		src_dir.list_dir_end()
 	else:
-		print("Failed to open source directory: ", src_path)
+		printerr("LocalAssets: Failed to open source directory: ", src_path)
 
 	EditorInterface.get_resource_filesystem().scan()
