@@ -19,7 +19,7 @@ var item = load("res://addons/local_assets/Components/Item/Item.tscn")
 const fileExtentions = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"]
 
 
-## Called when the node is added to the scene.
+# Called when the node is added to the scene.
 func _ready():
 	# Set up the editor settings and load assets based on the current settings.
 	editorSettings.settings_changed.connect(_eSettings_changed)
@@ -32,7 +32,7 @@ func _ready():
 	get_assets(assetPath.text)
 
 
-## Updates settings from the EditorSettings object.
+# Updates settings from the EditorSettings object.
 func _eSettings_changed():
 	if editorSettings.has_setting("Local_Assets/asset_dir"):
 		assetPath.text = editorSettings.get_setting("Local_Assets/asset_dir")
@@ -47,7 +47,7 @@ func _eSettings_changed():
 		uniformImageSize = editorSettings.get_setting("Local_Assets/uniform_image_size")
 
 
-## Sets up default editor settings if they are not present.
+# Sets up default editor settings if they are not present.
 func set_up_settings():
 	if !editorSettings.has_setting("Local_Assets/asset_dir"):
 		set_editor_setting("Local_Assets/asset_dir", "", TYPE_STRING)
@@ -65,20 +65,20 @@ func set_up_settings():
 		set_editor_setting("Local_Assets/uniform_image_size", Vector2i(918, 515), TYPE_VECTOR2I)
 
 
-## Helper function to set an editor setting and update its type.
+# Helper function to set an editor setting and update its type.
 func set_editor_setting(s_name: String, value: Variant, type: Variant.Type):
 	editorSettings.set_setting(s_name, value)
 	editorSettings.add_property_info({"name": s_name, "type": type})
 
 
-## Cleans up the cache when exiting the scene tree.
+# Cleans up the cache when exiting the scene tree.
 func _exit_tree():
 	if thread1.is_started():
 		await thread1.wait_to_finish()
 	DirAccess.remove_absolute(cache_path)
 
 
-## Opens a file dialog to select a directory for assets.
+# Opens a file dialog to select a directory for assets.
 func _on_open_dir_pressed():
 	Files.show()
 	var f = await Files.dir_selected
@@ -86,7 +86,7 @@ func _on_open_dir_pressed():
 	_on_assets_path_changed(f)
 
 
-## Updates the displayed assets when the asset path changes.
+# Updates the displayed assets when the asset path changes.
 func _on_assets_path_changed(new_text: String):
 	for child in grid.get_children():
 		child.queue_free()
@@ -94,7 +94,7 @@ func _on_assets_path_changed(new_text: String):
 		get_assets(new_text)
 
 
-## Searches assets by name and tag, displaying matched items.
+# Searches assets by name and tag, displaying matched items.
 func search(search_string: String):
 	backgroundText.hide()
 	if search_string.is_empty():
@@ -231,10 +231,11 @@ func _notification(what: int) -> void:
 		await DirAccess.remove_absolute(cache_path)
 
 
+# turns an array to a string
 func array_to_string(array: Array) -> String:
 	var string: String
 	for i in array:
-		string += i + " "
+		string += str(i) + " "
 	return string
 
 
