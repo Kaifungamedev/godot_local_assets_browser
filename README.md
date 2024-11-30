@@ -1,12 +1,13 @@
 ## Local assets browser 
 An asset browser for local assets  
-![image](https://github.com/Kaifungamedev/godot_local_assets_browser/assets/110266485/69f9bdbc-34ab-4fbf-aa52-3bb2cf7f0a7c)  
+![image](https://github.com/user-attachments/assets/a164789c-62c1-4cf3-8356-e3045b08b0be)
+
 
 ## Usage
 1. Click the folder icon in the top right and select the folder that all your assets are in.  
 2. Wait for all the assets to appear.  
 3. Find the asset you want and click `import`.  
-4. The assets should be in `res://Assets/{asset_name}`.  
+4. The assets will be in `res://Assets/{asset_name}`.  
 <!--
 > [!CAUTION]  
 > Currently loading hundreds of gigabytes of assets may crash the editor.  
@@ -29,7 +30,8 @@ An asset browser for local assets
 		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- `name` - the name of the asset that will appear in the browser  
 		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- (Optional) `image_path` - Preview image  
 		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- (Optional) `tags` - asset tags
-	![image](https://github.com/Kaifungamedev/godot_local_assets_browser/assets/110266485/71d9b5d4-f986-4e36-8547-bb60be1c3f54)
+	![image](https://github.com/user-attachments/assets/c9040acc-1450-4535-83f5-4acae19137dc)
+
 
 ## Upcoming Features
  - Customizable install directory.
