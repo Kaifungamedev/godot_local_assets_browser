@@ -1,7 +1,8 @@
 # Godot 4+ specific ignores
 .godot/
 # addons i used for dev
-addons/plugin_refresher/*
-addons/gdscript_formatter/*
+addons/*
+!addons/local_assets
+
 # not needed
-project.godot
+Assets/*

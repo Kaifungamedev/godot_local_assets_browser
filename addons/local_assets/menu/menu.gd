@@ -243,3 +243,10 @@ func array_to_string(array: Array) -> String:
 func _on_folder_changed() -> void:
 	var files = DirAccess.get_files_at(assets_cache_path)
 	%PaginationBar.total_pages = files.size()
+
+
+func copy_asset(dir: String, asset_name: String):
+	await _wait_for_thread_non_blocking(thread1)
+	thread1.start(LocalAssetsAssetCopier.copy_assets.bind(dir, "res://Assets/%s" % asset_name))
+	await _wait_for_thread_non_blocking(thread1)
+	EditorInterface.get_resource_filesystem().scan()

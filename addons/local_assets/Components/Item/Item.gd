@@ -56,7 +56,7 @@ func _on_path_pressed():
 
 
 func _on_import_pressed():
-	LocalAssetsAssetCopier.copy_assets(asset_path, "res://Assets/%s" % asset_name)
+	get_parent().owner.copy_asset(asset_path, asset_name)
 
 
 func make_icon(icon: Image) -> ImageTexture:

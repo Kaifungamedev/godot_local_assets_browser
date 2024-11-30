@@ -37,5 +37,3 @@ static func copy_assets(src_path: String, dst_path: String) -> void:
 		src_dir.list_dir_end()
 	else:
 		printerr("LocalAssets: Failed to open source directory: ", src_path)
-
-	EditorInterface.get_resource_filesystem().scan()
