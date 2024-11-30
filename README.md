@@ -13,11 +13,13 @@ An asset browser for local assets
 > A fix is in the works.--> 
 
 ## Settings  
-`Local_Assets/asset_dir` - directory to look for the assets. mainly used to keep the same directory across projects
-`Local_Assets/File_preview_names` - An array of names for preview files. files must be images.  
-`Local_Assets/use_first_image_found` - If a file in a does not match any name in `Local_Assets/File_preview_names` and no `Assets.json` file is found it will take the first image file it finds and use that.  
-`Local_Assets/use_uniform_image_size` - force all images to be a uniform size.
-`Local_Assets/uniform_image_size` - overrides all image sizes. Requires `Local_Assets/use_uniform_image_size` to be on.
+| Editor Setting | Description |
+| -------- | ------- |
+| `Local_Assets/asset_dir` | directory to look for the assets. mainly used to keep the same directory across projects  |
+| `Local_Assets/File_preview_names` | An array of names for preview files. files must be images.  |
+| `Local_Assets/use_first_image_found` | If a file in a does not match any name in `Local_Assets/File_preview_names` and no `Assets.json` file is found it will take the first image file it finds and use that.  |  
+| `Local_Assets/use_uniform_image_size` | force all images to be a uniform size.  |  
+| `Local_Assets/uniform_image_size` | overrides all image sizes. Requires `Local_Assets/use_uniform_image_size` to be on.  |  
 
 ## Troubleshooting  
 1. If assets don't show up this could be because the addon looks for image files with a specific name if it can't find a file with that name it skips it. You can add file names in  `EditorSettings -> Local_Assets -> File_preview_names`.     
@@ -29,5 +31,11 @@ An asset browser for local assets
 		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- (Optional) `tags` - asset tags
 	![image](https://github.com/Kaifungamedev/godot_local_assets_browser/assets/110266485/71d9b5d4-f986-4e36-8547-bb60be1c3f54)
 
+## Upcoming Features
+ - Customizable install directory.
+ - Tags. (Was implemented but somehow got removed `¯\_(ツ)_/¯`)
+
+Have an idea? suggest it [here.](https://github.com/Kaifungamedev/godot_local_assets_browser/issues/new?assignees=&labels=&projects=&template=feature_request.md&title=)
+
 ## Known Issues
- - Loading vary large folders (> 100gb) can crash the editor.
+None. 😃
