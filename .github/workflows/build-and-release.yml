@@ -42,11 +42,6 @@ jobs:
             target: aarch64-linux-android
             lib_name: libAssetManager.so
 
-          - platform: android-arm32
-            os: ubuntu-latest
-            target: armv7-linux-androideabi
-            lib_name: libAssetManager.so
-
           - platform: android-x86_64
             os: ubuntu-latest
             target: x86_64-linux-android
@@ -158,7 +153,6 @@ jobs:
 
           # Android
           cp artifacts/android-arm64-aarch64-linux-android/libAssetManager.so addons/local_assets/bin/libAssetManager.android.arm64.so
-          cp artifacts/android-arm32-armv7-linux-androideabi/libAssetManager.so addons/local_assets/bin/libAssetManager.android.arm32.so
           cp artifacts/android-x86_64-x86_64-linux-android/libAssetManager.so addons/local_assets/bin/libAssetManager.android.x86_64.so
 
       - name: Copy .gdextension file
@@ -197,7 +191,7 @@ jobs:
 
             ### Platforms Supported
             - **Editor:** Linux, Windows, macOS (universal binary)
-            - **Android:** arm64-v8a, armeabi-v7a, x86_64
+            - **Android:** arm64-v8a, x86_64
 
             ### Changes
             Auto-generated release from tag ${{ steps.get_version.outputs.version }}
