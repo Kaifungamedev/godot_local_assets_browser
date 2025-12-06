@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"] # Compile this crate to a dynamic C library.
 
 [dependencies]
-godot = { version = "0.4.4", features = ["api-4-3", "register-docs"] }
+godot = { version = "0.4.4", features = ["api-4-3", "register-docs", "experimental-threads"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

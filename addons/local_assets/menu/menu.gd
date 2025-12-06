@@ -38,7 +38,10 @@ func _ready():
 
 	# Load assets if path is set
 	if not assetPath.text.is_empty():
-		load_assets()
+		var start = Time.get_ticks_msec()
+		await load_assets()
+		var end = Time.get_ticks_msec()
+		print("time: ", end - start," ms")
 
 
 func _eSettings_changed():
@@ -160,8 +163,10 @@ func load_assets():
 	grid.hide()
 	backgroundText.show()
 
-	# Scan directory for assets
-	assetManager.find_assets(assetPath.text)
+	# Scan directory for assets in a separate thread
+	var thread = Thread.new()
+	thread.start(_scan_assets_thread.bind(assetPath.text))
+	await _wait_for_thread_non_blocking(thread)
 
 	if assetManager.get_error() != OK:
 		backgroundText.text = "Failed to scan directory"
@@ -188,6 +193,10 @@ func load_assets():
 		grid.show()
 	else:
 		backgroundText.text = "Failed to load assets"
+
+
+func _scan_assets_thread(path: String):
+	assetManager.find_assets(path)
 
 
 func add_items(_items: Array):
