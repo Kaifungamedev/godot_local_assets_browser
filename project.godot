@@ -12,13 +12,13 @@ config_version=5
 
 config/name="local_assets"
 config/tags=PackedStringArray("addon")
-config/features=PackedStringArray("4.2")
+config/features=PackedStringArray("4.3")
 run/flush_stdout_on_print=true
 config/icon="res://addons/local_assets/Icon.svg"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/explore-editor-theme/plugin.cfg", "res://addons/gdscript_formatter/plugin.cfg", "res://addons/local_assets/plugin.cfg", "res://addons/plugin_refresher/plugin.cfg")
+enabled=PackedStringArray("res://addons/local_assets/plugin.cfg")
 
 [filesystem]
 

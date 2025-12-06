@@ -5,49 +5,66 @@ class_name LocalAssets extends Control
 @onready var assetPath: LineEdit = %AssetsPath
 @onready var grid: GridContainer = %GridContainer
 @onready var backgroundText = %BackgroundText
-@onready var thread1: Thread = Thread.new()
 
 var editorSettings: EditorSettings = EditorInterface.get_editor_settings()
+var command_palette = EditorInterface.get_command_palette()
 var file_names: PackedStringArray
 var useFirstImage: bool
 var useUniformImageSize: bool
 var uniformImageSize: Vector2i
-var assetFinder: LocalAssetsAssetFinder
-var cache_path = EditorInterface.get_editor_paths().get_cache_dir().path_join("LocalAssets")
-var assets_cache_path = cache_path.path_join("assetGroup")
+var assetManager: AssetManager
+var pageSize:int = 50
+var db_path: String = EditorInterface.get_editor_paths().get_data_dir().path_join("assets.db")
 var item = load("res://addons/local_assets/Components/Item/Item.tscn")
-const fileExtentions = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"]
 
 
-# Called when the node is added to the scene.
 func _ready():
-	# Set up the editor settings and load assets based on the current settings.
 	editorSettings.settings_changed.connect(_eSettings_changed)
 	$VBoxContainer/TopBar/path/OpenDir.icon = EditorInterface.get_editor_theme().get_icon(
 		"Folder", "EditorIcons"
 	)
 	set_up_settings()
 	_eSettings_changed()
-	assetFinder = LocalAssetsAssetFinder.new()
-	get_assets(assetPath.text)
+	# external_command is a function that will be called with the command is executed.
+	command_palette.add_command("Reset_db", "localAssets/Reset_db",_reset_db)
+
+	# Initialize AssetManager with database
+	assetManager = AssetManager.new_db(db_path)
+
+	# Configure preview settings from editor settings
+	if not file_names.is_empty():
+		assetManager.set_preview_file_names(file_names)
+	assetManager.set_use_first_image(useFirstImage)
+
+	# Load assets if path is set
+	if not assetPath.text.is_empty():
+		load_assets()
 
 
-# Updates settings from the EditorSettings object.
 func _eSettings_changed():
 	if editorSettings.has_setting("Local_Assets/asset_dir"):
 		assetPath.text = editorSettings.get_setting("Local_Assets/asset_dir")
 		assetPath.text_changed.emit(assetPath.text)
 	if editorSettings.has_setting("Local_Assets/File_preview_names"):
 		file_names = editorSettings.get_setting("Local_Assets/File_preview_names")
+		if assetManager and not file_names.is_empty():
+			assetManager.set_preview_file_names(file_names)
+	if editorSettings.has_setting("Local_Assets/page_size"):
+			pageSize = editorSettings.get_setting("Local_Assets/page_size")
+			if assetManager:
+				assetManager.set_page_size(pageSize)
+				clear_items()
+				load_assets()
 	if editorSettings.has_setting("Local_Assets/use_first_image_found"):
 		useFirstImage = editorSettings.get_setting("Local_Assets/use_first_image_found")
+		if assetManager:
+			assetManager.set_use_first_image(useFirstImage)
 	if editorSettings.has_setting("Local_Assets/use_uniform_image_size"):
 		useUniformImageSize = editorSettings.get_setting("Local_Assets/use_uniform_image_size")
 	if editorSettings.has_setting("Local_Assets/uniform_image_size"):
 		uniformImageSize = editorSettings.get_setting("Local_Assets/uniform_image_size")
 
 
-# Sets up default editor settings if they are not present.
 func set_up_settings():
 	if !editorSettings.has_setting("Local_Assets/asset_dir"):
 		set_editor_setting("Local_Assets/asset_dir", "", TYPE_STRING)
@@ -57,28 +74,28 @@ func set_up_settings():
 			PackedStringArray(["Preview", "Asset"]),
 			TYPE_PACKED_STRING_ARRAY
 		)
+	if !editorSettings.has_setting("Local_Assets/page_size"):
+		set_editor_setting("Local_Assets/page_size", 50, TYPE_INT)
 	if !editorSettings.has_setting("Local_Assets/use_first_image_found"):
 		set_editor_setting("Local_Assets/use_first_image_found", false, TYPE_BOOL)
 	if !editorSettings.has_setting("Local_Assets/use_uniform_image_size"):
 		set_editor_setting("Local_Assets/use_uniform_image_size", false, TYPE_BOOL)
 	if !editorSettings.has_setting("Local_Assets/uniform_image_size"):
 		set_editor_setting("Local_Assets/uniform_image_size", Vector2i(918, 515), TYPE_VECTOR2I)
+	if !editorSettings.has_setting("Local_Assets/uniform_image_size"):
+		set_editor_setting("Local_Assets/uniform_image_size", Vector2i(918, 515), TYPE_VECTOR2I)
 
 
-# Helper function to set an editor setting and update its type.
 func set_editor_setting(s_name: String, value: Variant, type: Variant.Type):
 	editorSettings.set_setting(s_name, value)
 	editorSettings.add_property_info({"name": s_name, "type": type})
 
 
-# Cleans up the cache when exiting the scene tree.
 func _exit_tree():
-	if thread1.is_started():
-		await thread1.wait_to_finish()
-	DirAccess.remove_absolute(cache_path)
+	if assetManager:
+		assetManager.quit()
 
 
-# Opens a file dialog to select a directory for assets.
 func _on_open_dir_pressed():
 	Files.show()
 	var f = await Files.dir_selected
@@ -86,114 +103,134 @@ func _on_open_dir_pressed():
 	_on_assets_path_changed(f)
 
 
-# Updates the displayed assets when the asset path changes.
 func _on_assets_path_changed(new_text: String):
-	for child in grid.get_children():
-		child.queue_free()
-	if assetFinder:
-		get_assets(new_text)
+	clear_items()
+	if new_text.is_empty():
+		backgroundText.text = "No path selected"
+		backgroundText.show()
+		grid.hide()
+		return
+	load_assets()
 
 
-# Searches assets by name and tag, displaying matched items.
 func search(search_string: String):
 	backgroundText.hide()
+
 	if search_string.is_empty():
 		_on_pagination_bar_page_changed(%PaginationBar.current_page)
 		return
+
 	clear_items()
 
-	var found: bool = false
-	search_string = search_string.to_lower()
-	var tag_search_term: String = ""
-	var tag_search_pattern = "tag:"
-	var search_terms: Array = search_string.split(" ")
+	# Use AssetManager's search functionality
+	var results = assetManager.search(search_string, 1)
 
-	# Extract tag search term if present
-	for term in search_terms:
-		if term.begins_with(tag_search_pattern):
-			tag_search_term = term.substr(tag_search_pattern.length())
-			search_terms.erase(term)
-			break
+	if assetManager.get_error() != OK:
+		backgroundText.text = "Search failed"
+		backgroundText.show()
+		return
 
-	# Construct name search string
-	var name_search_string = array_to_string(search_terms).strip_edges()
-
-	# Locate JSON files and search entries
-	var dir = DirAccess.open(assets_cache_path)
-	if dir:
-		for file in dir.get_files():
-			if file.ends_with(".json"):
-				var json = load(assets_cache_path.path_join(file)) as JSON
-				if json and json.data:
-					for entry in json.data:
-						var name_found = entry["name"].to_lower().find(name_search_string) != -1
-						var tag_found = tag_search_term in entry.get("tags", [])
-
-						if (
-							(tag_search_term != "" and name_found and tag_found)
-							or (tag_search_term == "" and name_found)
-						):
-							var node: LocalAssetsItem = item.instantiate()
-							node.root = self
-							node.asset_name = entry["name"]
-							node.asset_icon_path = entry.get("image_path", null)
-							node.asset_path = entry["path"]
-							node.tags = entry.get("tags", [])
-							node.visible = true
-							node.update()
-							grid.call_deferred("add_child", node)
-							found = true
-
-	# Show "Not Found" message if no matches are found
-	if !found:
+	if results.assets.is_empty():
 		backgroundText.text = "Not Found"
 		backgroundText.show()
+		return
+
+	# Update pagination
+	%PaginationBar.total_pages = results.num_of_pages
+	%PaginationBar.current_page = 1
+
+	# Display results
+	add_items(results.assets)
+	backgroundText.hide()
+	grid.show()
 
 
-## Saves the current asset directory path to editor settings.
 func save():
 	set_editor_setting("Local_Assets/asset_dir", assetPath.text, TYPE_STRING)
 
 
-## Clears all items from the grid container.
 func clear_items():
 	for c: Control in grid.get_children():
 		c.queue_free()
 
 
-## Loads assets from the specified path and starts the asset finding process.
-func get_assets(Path: String):
-	print_verbose("LocalAssets: looking for assets")
-	backgroundText.text = "Loading"
+func load_assets():
+	print_verbose("LocalAssets: scanning for assets")
+	backgroundText.text = "Loading..."
 	grid.hide()
 	backgroundText.show()
-	for file in DirAccess.get_directories_at(cache_path):
-		DirAccess.remove_absolute(file)
-	if thread1.is_started():
-		await _wait_for_thread_non_blocking(thread1)
 
-	assetFinder._file_index = 1
-	thread1.start(
-		assetFinder.find_assets.bind(
-			Path, file_names, useFirstImage, useUniformImageSize, uniformImageSize
-		)
-	)
-	await _wait_for_thread_non_blocking(thread1)
+	# Scan directory for assets
+	assetManager.find_assets(assetPath.text)
 
-	var assets = load(assets_cache_path.path_join("assetGroup_1.json")).data
-	if typeof(assets) == TYPE_ARRAY:
-		if assets.is_empty():
-			backgroundText.text = "No assets found."
-			return
-		assets.sort_custom(func(a, b): return a.name.naturalnocasecmp_to(b.name) < 0)
-		add_items(assets)
+	if assetManager.get_error() != OK:
+		backgroundText.text = "Failed to scan directory"
+		return
+
+	# Get total count
+	var total_count = assetManager.get_asset_count()
+
+	if total_count == 0:
+		backgroundText.text = "No assets found."
+		return
+
+	# Update pagination
+	%PaginationBar.total_pages = assetManager.get_pages()
+	%PaginationBar.current_page = 1
+
+	# Load first page
+	var page_data = assetManager.get_assets(1)
+
+	if assetManager.get_error() == OK and not page_data.assets.is_empty():
+		add_items(page_data.assets)
 		save()
 		backgroundText.hide()
 		grid.show()
-		_on_folder_changed()
+	else:
+		backgroundText.text = "Failed to load assets"
 
 
-# Waits non-blocking until the given thread finishes its task.
+func add_items(_items: Array):
+	for i in _items:
+		var asset_item: LocalAssetsItem = item.instantiate()
+		if asset_item:
+			asset_item.root = self
+			asset_item.asset_name = i.get("name", "")
+			asset_item.asset_path = i.get("path", "")
+			asset_item.tags = i.get("tags", [])
+
+			# Load image if path exists
+			var img_path = i.get("image_path", "")
+			if not img_path.is_empty():
+				asset_item.asset_icon = Image.load_from_file(img_path)
+
+			asset_item.update()
+			grid.add_child(asset_item)
+
+
+func _on_pagination_bar_page_changed(new_page: int):
+	clear_items()
+
+	var page_data = assetManager.get_assets(new_page)
+
+	if assetManager.get_error() == OK:
+		add_items(page_data.assets)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		if assetManager:
+			assetManager.quit()
+
+
+func copy_asset(dir: String, asset_name: String):
+	# Copy assets to project
+	var thread = Thread.new()
+	thread.start(LocalAssetsAssetCopier.copy_assets.bind(dir, "res://Assets/%s" % asset_name))
+	await _wait_for_thread_non_blocking(thread)
+	EditorInterface.get_resource_filesystem().scan()
+
+
 func _wait_for_thread_non_blocking(thread: Thread) -> Variant:
 	while thread.is_alive():
 		await get_tree().process_frame
@@ -202,51 +239,17 @@ func _wait_for_thread_non_blocking(thread: Thread) -> Variant:
 	else:
 		return FAILED
 
-
-# Adds items from the provided asset array to the grid container.
-func add_items(_items: Array):
-	for i: Dictionary in _items:
-		var item: LocalAssetsItem = (
-			load("res://addons/local_assets/Components/Item/Item.tscn").instantiate()
-		)
-		if item:
-			item.root = self
-			item.asset_icon = Image.load_from_file(i.get("image_path", ""))
-			item.tags = i.get("tags", [])
-			item.asset_name = i.get("name", "")
-			item.asset_path = i.get("path", "")
-			item.update()
-			grid.call_deferred_thread_group("add_child", item)
-
-
-# Updates the displayed items when pagination page changes.
-func _on_pagination_bar_page_changed(new_page: int):
+func _reset_db():
+	assetManager.quit()
+	DirAccess.remove_absolute(db_path)
+	assetManager = AssetManager.new_db(db_path)
 	clear_items()
-	add_items(load(assets_cache_path.path_join("assetGroup_%s.json" % str(new_page))).data)
+	if not assetPath.text.is_empty():
+		load_assets()
 
 
-# Handles cleanup notifications before the node is deleted.
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_PREDELETE:
-		await DirAccess.remove_absolute(cache_path)
-
-
-# turns an array to a string
-func array_to_string(array: Array) -> String:
-	var string: String
-	for i in array:
-		string += str(i) + " "
-	return string
-
-
-# Called when the folder content changes, updates the pagination bar.
-func _on_folder_changed() -> void:
-	var files = DirAccess.get_files_at(assets_cache_path)
-	%PaginationBar.total_pages = files.size()
-
-
-func copy_asset(dir: String, asset_name: String):
-	await _wait_for_thread_non_blocking(thread1)
-	thread1.start(LocalAssetsAssetCopier.copy_assets.bind(dir, "res://Assets/%s" % asset_name))
-	await _wait_for_thread_non_blocking(thread1)
-	EditorInterface.get_resource_filesystem().scan()
+func _on_tree_exiting() -> void:
+	if assetManager:
+		assetManager.quit()
+	command_palette.remove_command("localAssets/Reset_db")
+	

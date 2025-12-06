@@ -1,8 +1,11 @@
 # Godot 4+ specific ignores
 .godot/
-# addons i used for dev
+# exclude qol addons
 addons/*
 !addons/local_assets
 
 # not needed
 Assets/*
+# exclude binaries
+addons/local_assets/bin/*
+!addons/local_assets/bin/AssetManager.gdextension

@@ -1,0 +1,12 @@
+[configuration]
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.3
+reloadable = false
+
+[libraries]
+linux.editor.x86_64 = "res://addons/local_assets/bin/libAssetManager.linux.x86_64.so"
+windows.editor.x86_64 = "res://addons/local_assets/bin/libAssetManager.windows.x86_64.dll"
+macos.editor = "res://addons/local_assets/bin/libAssetManager.macos.framework"
+android.editor.arm64 = "res://addons/local_assets/bin/libAssetManager.android.arm64.so"
+android.editor.arm32 = "res://addons/local_assets/bin/libAssetManager.android.arm32.so"
+android.editor.x86_64 = "res://addons/local_assets/bin/libAssetManager.android.x86_64.so"
