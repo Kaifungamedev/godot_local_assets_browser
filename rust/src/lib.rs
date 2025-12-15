@@ -761,6 +761,21 @@ impl AssetManager {
         result.is_ok()
     }
 
+    fn path_exists_in_db(&self, path: &str) -> bool {
+        let conn = match self.get_connection() {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+
+        let result: Result<i64, _> = conn.query_row(
+            "SELECT 1 FROM assets WHERE path = ?1",
+            params![path],
+            |row| row.get(0),
+        );
+
+        result.is_ok()
+    }
+
     fn search_assets(&self, query: &str, offset: i64, limit: i64) -> SqlResult<(Vec<AssetData>, i64)> {
         let conn = self.get_connection()?;
         let search_pattern = format!("%{}%", query);
@@ -821,6 +836,12 @@ impl AssetManager {
 
             // Check if already deleted
             if self.is_deleted(&path_str) {
+                walker.skip_current_dir();
+                continue;
+            }
+
+            // Check if path already exists in database - skip to speed up rescanning
+            if self.path_exists_in_db(&path_str) {
                 walker.skip_current_dir();
                 continue;
             }
