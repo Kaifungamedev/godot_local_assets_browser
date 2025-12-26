@@ -163,9 +163,7 @@ jobs:
 
       - name: Create addon zip
         run: |
-          cd addons
-          zip -r ../local_assets_addon.zip local_assets/
-          cd ..
+          zip -r local_assets_addon.zip addons/local_assets/
 
       - name: Get version
         id: get_version
