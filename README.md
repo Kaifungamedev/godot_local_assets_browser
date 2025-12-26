@@ -70,7 +70,7 @@ If assets don't appear, the addon may not be finding matching preview images. So
    ![image](https://github.com/user-attachments/assets/c9040acc-1450-4535-83f5-4acae19137dc)
 
 ### Database Issues
-The addon uses an SQLite database (`user://local_assets.db`) to cache asset information. If you experience issues:
+The addon uses an SQLite database (`<EditorDataFolder>/local_assets.db`) to cache asset information. If you experience issues:
 
 1. **Reset the database** using the command palette: `Ctrl+Shift+P` → "Reset_db"
 2. The database will be automatically recreated and assets rescanned
