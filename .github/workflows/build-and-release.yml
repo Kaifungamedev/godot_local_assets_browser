@@ -96,7 +96,7 @@ jobs:
         working-directory: rust
         run: cargo build --release --target ${{ matrix.target }}
         env:
-          CARGO_INCREMENTAL: 1
+          CARGO_INCREMENTAL: 0
           CARGO_PROFILE_RELEASE_LTO: "thin"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
 
