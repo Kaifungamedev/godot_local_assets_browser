@@ -24,6 +24,7 @@ struct AssetManager {
     last_error: godot::global::Error,
     preview_file_names: Vec<String>,
     use_first_image: bool,
+    use_folder_name: bool,
 
     #[allow(dead_code)]
     base: Base<RefCounted>,
@@ -38,6 +39,7 @@ impl IRefCounted for AssetManager {
             last_error: godot::global::Error::OK,
             preview_file_names: vec!["Preview".to_string(), "Asset".to_string()],
             use_first_image: false,
+            use_folder_name: true,
             base,
         }
     }
@@ -79,6 +81,7 @@ impl AssetManager {
                 last_error: godot::global::Error::OK,
                 preview_file_names: vec!["Preview".to_string(), "Asset".to_string()],
                 use_first_image: false,
+                use_folder_name: true,
                 base,
             }
         });
@@ -126,22 +129,23 @@ impl AssetManager {
     /// When scanning directories without Asset.json, looks for images with these base names.
     /// Supports both literal names and regex patterns. Also checks folder name as a fallback.
     /// [br][br]
-    /// Patterns are treated as regex if they:
-    /// [br]- Start with ^ (anchor)
-    /// [br]- Contain regex special characters: [ ] * + ? ( ) | $ .
+    /// Do not include file extensions - all supported image formats are automatically checked.
     /// [br]
-    /// Otherwise treated as literal prefix match (case-insensitive).
-    /// Literal patterns match filenames that START with the pattern.
-    /// Regex patterns are case-insensitive and must match the full filename including extension.
+    /// Patterns are treated as regex ONLY if they start with ^ (anchor).
+    /// Otherwise treated as exact literal match (case-insensitive).
+    /// [br]
+    /// Literal patterns match the filename stem exactly (without extension), case-insensitive.
+    /// Regex patterns have full control - use (?i) prefix for case-insensitive matching if desired.
+    /// Regex results are still filtered for supported image extensions.
     ///
-    /// [param file_names]: [Array] Array of filename prefixes or regex patterns (e.g. ["Preview", "^thumb.*", "icon[0-9]+"])
+    /// [param file_names]: [Array] Array of filenames (without extensions) or regex patterns (e.g. ["Preview", "^(?i)thumb.*"])
     /// [br][br]Examples:
     /// [codeblock]
-    /// # Literal prefixes (will match Preview.png, Preview1.png, Asset_alt.jpg, etc.)
+    /// # Literal exact match (case-insensitive: matches Preview.png, preview.jpg, PREVIEW.webp but NOT Preview1)
     /// manager.set_preview_file_names(["Preview", "Asset", "Thumbnail"])
     /// [br]
-    /// # Regex patterns (match full filename with extension)
-    /// manager.set_preview_file_names(["^preview.*\\.png$", "thumb(nail)?.*", "icon[0-9]+\\..*"])
+    /// # Regex patterns (must start with ^, use (?i) for case-insensitive)
+    /// manager.set_preview_file_names(["^(?i)preview.*", "^thumb(nail)?.*", "^.*_00"])
     /// [/codeblock]
     #[func]
     fn set_preview_file_names(&mut self, file_names: Array<GString>) {
@@ -163,6 +167,22 @@ impl AssetManager {
     #[func]
     fn set_use_first_image(&mut self, use_first: bool) {
         self.use_first_image = use_first;
+    }
+
+    /// Set whether to use the folder name as a fallback for finding preview images.
+    ///
+    /// When true, if none of the preview file names match, the scanner will look for
+    /// an image file that matches the folder name (e.g., folder "MyAsset" looks for "MyAsset.png").
+    /// This check happens before the first image fallback.
+    ///
+    /// [param use_folder]: [bool] Whether to use folder name as fallback
+    /// [br][br]Example:
+    /// [codeblock]
+    /// manager.set_use_folder_name(true)
+    /// [/codeblock]
+    #[func]
+    fn set_use_folder_name(&mut self, use_folder: bool) {
+        self.use_folder_name = use_folder;
     }
 
     /// Get the total number of pages based on current page size.
@@ -878,13 +898,12 @@ impl AssetManager {
 
                 // First pass: look for specific preview file names (supports regex)
                 for preview_pattern in &self.preview_file_names {
-                    // Check if pattern looks like regex (contains special chars or starts with ^)
-                    let is_regex = preview_pattern.starts_with('^') ||
-                                   preview_pattern.contains(['[', ']', '*', '+', '?', '(', ')', '|', '$', '.']);
+                    // Check if pattern is regex (starts with '^')
+                    let is_regex = preview_pattern.starts_with('^');
 
                     if is_regex {
-                        // Use regex matching
-                        if let Ok(re) = Regex::new(&format!("(?i){}", preview_pattern)) {
+                        // Use regex matching - user has full control (use (?i) in pattern for case-insensitive)
+                        if let Ok(re) = Regex::new(&preview_pattern) {
                             for file_entry in &files {
                                 let filename = file_entry.file_name().to_string_lossy().to_string();
                                 if re.is_match(&filename) {
@@ -900,15 +919,14 @@ impl AssetManager {
                             }
                         }
                     } else {
-                        // Use literal matching with extension
-                        // Also matches with optional numbers/suffix (e.g., "Preview" matches "Preview1.png", "Preview_alt.png")
+                        // Use literal matching - exact filename match (case-insensitive)
+                        // "Preview" matches "Preview.png", "preview.jpg" but NOT "Preview1.png"
                         for file_entry in &files {
-                            // Check if filename starts with the pattern (case-insensitive)
                             if let Some(stem) = file_entry.path().file_stem() {
                                 let stem_str = stem.to_string_lossy().to_string();
 
-                                // Match if stem starts with the pattern
-                                if stem_str.to_lowercase().starts_with(&preview_pattern.to_lowercase()) {
+                                // Match if stem equals the pattern exactly (case-insensitive)
+                                if stem_str.eq_ignore_ascii_case(&preview_pattern) {
                                     // Verify it's an image file
                                     if let Some(ext) = file_entry.path().extension() {
                                         let ext_str = ext.to_string_lossy().to_lowercase();
@@ -927,8 +945,8 @@ impl AssetManager {
                     }
                 }
 
-                // Second pass: look for folder name as filename
-                if found_image.is_none() {
+                // Second pass: look for folder name as filename (if enabled)
+                if found_image.is_none() && self.use_folder_name {
                     for ext in &file_extensions {
                         let target_filename = format!("{}.{}", folder_name, ext);
 

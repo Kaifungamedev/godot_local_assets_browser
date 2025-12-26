@@ -10,6 +10,7 @@ var editorSettings: EditorSettings = EditorInterface.get_editor_settings()
 var command_palette = EditorInterface.get_command_palette()
 var file_names: PackedStringArray
 var useFirstImage: bool
+var useFolderName: bool
 var useUniformImageSize: bool
 var uniformImageSize: Vector2i
 var assetManager: AssetManager
@@ -26,7 +27,7 @@ func _ready():
 	set_up_settings()
 	_eSettings_changed()
 	# external_command is a function that will be called with the command is executed.
-	command_palette.add_command("Reset_db", "localAssets/Reset_db",_reset_db)
+	command_palette.add_command("Reset_db", "localAssets/Reset_db", Callable(self, "_reset_db"))
 
 	# Initialize AssetManager with database
 	assetManager = AssetManager.new_db(db_path)
@@ -35,6 +36,7 @@ func _ready():
 	if not file_names.is_empty():
 		assetManager.set_preview_file_names(file_names)
 	assetManager.set_use_first_image(useFirstImage)
+	assetManager.set_use_folder_name(useFolderName)
 
 	# Load assets if path is set
 	if not assetPath.text.is_empty():
@@ -62,6 +64,10 @@ func _eSettings_changed():
 		useFirstImage = editorSettings.get_setting("Local_Assets/use_first_image_found")
 		if assetManager:
 			assetManager.set_use_first_image(useFirstImage)
+	if editorSettings.has_setting("Local_Assets/use_folder_name"):
+		useFolderName = editorSettings.get_setting("Local_Assets/use_folder_name")
+		if assetManager:
+			assetManager.set_use_folder_name(useFolderName)
 	if editorSettings.has_setting("Local_Assets/use_uniform_image_size"):
 		useUniformImageSize = editorSettings.get_setting("Local_Assets/use_uniform_image_size")
 	if editorSettings.has_setting("Local_Assets/uniform_image_size"):
@@ -74,13 +80,15 @@ func set_up_settings():
 	if !editorSettings.has_setting("Local_Assets/File_preview_names"):
 		set_editor_setting(
 			"Local_Assets/File_preview_names",
-			PackedStringArray(["Preview", "Asset"]),
+			PackedStringArray(["Preview", "Asset","^Preview.","^Asset."]),
 			TYPE_PACKED_STRING_ARRAY
 		)
 	if !editorSettings.has_setting("Local_Assets/page_size"):
 		set_editor_setting("Local_Assets/page_size", 50, TYPE_INT)
 	if !editorSettings.has_setting("Local_Assets/use_first_image_found"):
 		set_editor_setting("Local_Assets/use_first_image_found", false, TYPE_BOOL)
+	if !editorSettings.has_setting("Local_Assets/use_folder_name"):
+		set_editor_setting("Local_Assets/use_folder_name", true, TYPE_BOOL)
 	if !editorSettings.has_setting("Local_Assets/use_uniform_image_size"):
 		set_editor_setting("Local_Assets/use_uniform_image_size", false, TYPE_BOOL)
 	if !editorSettings.has_setting("Local_Assets/uniform_image_size"):
