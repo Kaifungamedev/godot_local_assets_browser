@@ -43,7 +43,7 @@ func _ready():
 		var start = Time.get_ticks_msec()
 		await load_assets()
 		var end = Time.get_ticks_msec()
-		print("time: ", end - start," ms")
+		print_verbose("[Local Assets]: asset load time: ", end - start," ms")
 
 
 func _eSettings_changed():
@@ -80,7 +80,7 @@ func set_up_settings():
 	if !editorSettings.has_setting("Local_Assets/File_preview_names"):
 		set_editor_setting(
 			"Local_Assets/File_preview_names",
-			PackedStringArray(["Preview", "Asset","^Preview.","^Asset."]),
+			PackedStringArray(["Preview", "Asset", "^(?i)preview.*", "^(?i)asset.*"]),
 			TYPE_PACKED_STRING_ARRAY
 		)
 	if !editorSettings.has_setting("Local_Assets/page_size"):
