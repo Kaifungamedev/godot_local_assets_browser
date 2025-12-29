@@ -5,6 +5,7 @@ class_name LocalAssets extends Control
 @onready var assetPath: LineEdit = %AssetsPath
 @onready var grid: GridContainer = %GridContainer
 @onready var backgroundText = %BackgroundText
+@onready var db_path: String = EditorInterface.get_editor_paths().get_data_dir().path_join("assets.db")
 
 var editorSettings: EditorSettings = EditorInterface.get_editor_settings()
 var command_palette = EditorInterface.get_command_palette()
@@ -15,7 +16,6 @@ var useUniformImageSize: bool
 var uniformImageSize: Vector2i
 var assetManager: AssetManager
 var pageSize:int = 50
-var db_path: String = EditorInterface.get_editor_paths().get_data_dir().path_join("assets.db")
 var item = load("res://addons/local_assets/Components/Item/Item.tscn")
 
 
@@ -257,12 +257,36 @@ func _wait_for_thread_non_blocking(thread: Thread) -> Variant:
 		return FAILED
 
 func _reset_db():
+	# Fully release the AssetManager to close all database connections
 	assetManager.quit()
-	DirAccess.remove_absolute(db_path)
+	assetManager = null
+
+	# Wait for RefCounted garbage collection to finalize the object
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	# Now try to delete the database
+	if FileAccess.file_exists(db_path):
+		var err = DirAccess.remove_absolute(db_path)
+		if err != OK:
+			push_error("Failed to delete database: " + str(err))
+			return
+
+	# Wait another frame to ensure file system catches up
+	await get_tree().process_frame
+
+	# Create new AssetManager
 	assetManager = AssetManager.new_db(db_path)
+	assetManager.set_preview_file_names(file_names)
+	assetManager.set_use_first_image(useFirstImage)
+	assetManager.set_use_folder_name(useFolderName)
+	assetManager.set_page_size(pageSize)
+
 	clear_items()
 	if not assetPath.text.is_empty():
 		load_assets()
+
+	print("Database reset complete")
 
 
 func _on_tree_exiting() -> void:

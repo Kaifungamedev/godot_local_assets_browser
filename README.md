@@ -17,6 +17,7 @@ An asset browser for local assets
 The addon uses a Rust GDExtension with SQLite database for fast asset management. Assets are discovered by:
 
 1. **Asset.json files** - Explicitly define an asset with metadata (name, path, preview image, tags)
+   - **Auto-fill feature**: If an Asset.json file exists but is empty or incomplete, the scanner will automatically fill it with discovered data (folder name, preview image, etc.)
 2. **Preview file names** - Searches for images matching configured patterns (supports regex)
 3. **Folder name matching** - If enabled, falls back to using the folder name (e.g., folder "MyAsset" looks for "MyAsset.png")
 4. **First image fallback** - If enabled, uses the first image in a directory when no preview matches

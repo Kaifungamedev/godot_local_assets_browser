@@ -10,7 +10,7 @@ use regex::Regex;
 struct AssetData {
     path: String,
     name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     image_path: Option<String>,
     #[serde(default)]
     tags: Vec<String>,
@@ -868,20 +868,28 @@ impl AssetManager {
 
             // Check for Asset.json
             let asset_json = path.join("Asset.json");
-            if asset_json.exists() {
+            let has_asset_json = asset_json.exists();
+
+            if has_asset_json {
                 if let Ok(content) = std::fs::read_to_string(&asset_json) {
-                    if let Ok(asset_data) = serde_json::from_str::<AssetData>(&content) {
-                        let _ = self.insert_asset(
-                            &asset_data.name,
-                            &asset_data.path,
-                            asset_data.image_path.as_deref(),
-                            &asset_data.tags,
-                        );
+                    // Try to parse, but if it's empty/invalid, we'll auto-fill it
+                    let asset_json_data = serde_json::from_str::<AssetData>(&content).ok();
+
+                    // If we successfully parsed and have both name and path, use it as-is
+                    if let Some(ref data) = asset_json_data {
+                        if !data.name.is_empty() && !data.path.is_empty() {
+                            let _ = self.insert_asset(
+                                &data.name,
+                                &data.path,
+                                data.image_path.as_deref(),
+                                &data.tags,
+                            );
+                            walker.skip_current_dir();
+                            continue;
+                        }
                     }
                 }
-                // Skip subdirectories since we found an asset here
-                walker.skip_current_dir();
-                continue;
+                // If we reach here, Asset.json exists but is empty/incomplete - will auto-fill below
             }
 
             // Look for preview image files
@@ -959,8 +967,8 @@ impl AssetManager {
                     }
                 }
 
-                // Third pass: use first image if enabled
-                if found_image.is_none() && self.use_first_image {
+                // Third pass: use first image if enabled OR if we have empty Asset.json
+                if found_image.is_none() && (self.use_first_image || has_asset_json) {
                     for file_entry in &files {
                         if let Some(ext) = file_entry.path().extension() {
                             let ext_str = ext.to_string_lossy().to_lowercase();
@@ -975,9 +983,28 @@ impl AssetManager {
 
             // Insert asset if we found an image
             let final_image = found_image.or(first_image);
+
+            // If we have an empty Asset.json file, write the auto-discovered data to it
+            if has_asset_json {
+                let auto_data = AssetData {
+                    name: folder_name.clone(),
+                    path: path_str.clone(),
+                    image_path: final_image.clone().or(Some(String::new())),  // Empty string if no image found
+                    tags: Vec::new(),
+                };
+
+                // Write the auto-discovered data to Asset.json
+                if let Ok(json_content) = serde_json::to_string_pretty(&auto_data) {
+                    let _ = std::fs::write(&asset_json, json_content);
+                }
+            }
+
             if let Some(image_path) = final_image {
                 let _ = self.insert_asset(&folder_name, &path_str, Some(&image_path), &[]);
                 // Skip subdirectories since we found an asset here
+                walker.skip_current_dir();
+            } else if has_asset_json {
+                // Even without an image, if we had an empty Asset.json, skip subdirectories
                 walker.skip_current_dir();
             }
         }
