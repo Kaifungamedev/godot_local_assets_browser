@@ -45,8 +45,7 @@ func update():
 		_icon.texture = EditorInterface.get_editor_theme().get_icon("FileBroken", "EditorIcons")
 	_name.text = asset_name
 	_name.tooltip_text = asset_name
-	if tags:
-		_update_tags()
+	_update_tags()
 
 
 func _update_tags():

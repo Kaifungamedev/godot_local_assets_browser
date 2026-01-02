@@ -63,7 +63,9 @@ func _set_image():
 func _on_save_pressed() -> void:
 	var _tags: Array = Array()
 	for i in asset_tags.text.split(","):
-		_tags.append(i.strip_edges())
+		var tag = i.strip_edges()
+		if not tag.is_empty():
+			_tags.append(tag)
 	
 	var asset_dict:Dictionary = {
 	"path":asset_path.text,
@@ -72,16 +74,19 @@ func _on_save_pressed() -> void:
 	"tags":_tags
 	}
 	item.set_from_asset_dict(asset_dict)
-	item.asset = asset_dict
-	item.update()
 	FileAccess.open(asset_dict.path.path_join("Asset.json"),FileAccess.WRITE).store_string(JSON.stringify(asset_dict,"\t"))
+	asset_dict["id"] = asset["id"]
+	item.asset = asset_dict
+	var error = asset_manager.update_asset(asset["id"],asset_dict)
+	if error != OK: 
+		print("Update failed")
+	item.update()
 
 
 
 
 func _on_discard_pressed() -> void:
-	_set_line_edits()
-	_set_image()
+	hide()
 
 
 func _on_image_path_text_changed(new_text: String) -> void:
