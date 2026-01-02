@@ -6,7 +6,7 @@ class_name LocalAssets extends Control
 @onready var grid: GridContainer = %GridContainer
 @onready var backgroundText = %BackgroundText
 @onready var db_path: String = EditorInterface.get_editor_paths().get_data_dir().path_join("assets.db")
-
+@onready var asset_editor:LocalAssetsAssetEditor = $VSplitContainer/AssetEditor
 var editorSettings: EditorSettings = EditorInterface.get_editor_settings()
 var command_palette = EditorInterface.get_command_palette()
 var file_names: PackedStringArray
@@ -14,14 +14,14 @@ var useFirstImage: bool
 var useFolderName: bool
 var useUniformImageSize: bool
 var uniformImageSize: Vector2i
-var assetManager: AssetManager
+var asset_manager: AssetManager
 var pageSize:int = 50
 var item = load("res://addons/local_assets/Components/Item/Item.tscn")
 
 
 func _ready():
 	editorSettings.settings_changed.connect(_eSettings_changed)
-	$VBoxContainer/TopBar/path/OpenDir.icon = EditorInterface.get_editor_theme().get_icon(
+	$VSplitContainer/VBoxContainer/TopBar/path/OpenDir.icon = EditorInterface.get_editor_theme().get_icon(
 		"Folder", "EditorIcons"
 	)
 	set_up_settings()
@@ -30,13 +30,13 @@ func _ready():
 	command_palette.add_command("Reset_db", "localAssets/Reset_db", Callable(self, "_reset_db"))
 
 	# Initialize AssetManager with database
-	assetManager = AssetManager.new_db(db_path)
+	asset_manager = AssetManager.new_db(db_path)
 
 	# Configure preview settings from editor settings
 	if not file_names.is_empty():
-		assetManager.set_preview_file_names(file_names)
-	assetManager.set_use_first_image(useFirstImage)
-	assetManager.set_use_folder_name(useFolderName)
+		asset_manager.set_preview_file_names(file_names)
+	asset_manager.set_use_first_image(useFirstImage)
+	asset_manager.set_use_folder_name(useFolderName)
 
 	# Load assets if path is set
 	if not assetPath.text.is_empty():
@@ -52,27 +52,30 @@ func _eSettings_changed():
 		assetPath.text_changed.emit(assetPath.text)
 	if editorSettings.has_setting("Local_Assets/File_preview_names"):
 		file_names = editorSettings.get_setting("Local_Assets/File_preview_names")
-		if assetManager and not file_names.is_empty():
-			assetManager.set_preview_file_names(file_names)
+		if asset_manager and not file_names.is_empty():
+			asset_manager.set_preview_file_names(file_names)
 	if editorSettings.has_setting("Local_Assets/page_size"):
 			pageSize = editorSettings.get_setting("Local_Assets/page_size")
-			if assetManager:
-				assetManager.set_page_size(pageSize)
+			if asset_manager:
+				asset_manager.set_page_size(pageSize)
 				clear_items()
 				load_assets()
 	if editorSettings.has_setting("Local_Assets/use_first_image_found"):
 		useFirstImage = editorSettings.get_setting("Local_Assets/use_first_image_found")
-		if assetManager:
-			assetManager.set_use_first_image(useFirstImage)
+		if asset_manager:
+			asset_manager.set_use_first_image(useFirstImage)
 	if editorSettings.has_setting("Local_Assets/use_folder_name"):
 		useFolderName = editorSettings.get_setting("Local_Assets/use_folder_name")
-		if assetManager:
-			assetManager.set_use_folder_name(useFolderName)
+		if asset_manager:
+			asset_manager.set_use_folder_name(useFolderName)
 	if editorSettings.has_setting("Local_Assets/use_uniform_image_size"):
 		useUniformImageSize = editorSettings.get_setting("Local_Assets/use_uniform_image_size")
 	if editorSettings.has_setting("Local_Assets/uniform_image_size"):
 		uniformImageSize = editorSettings.get_setting("Local_Assets/uniform_image_size")
 
+func edit_asset(id:int,item:LocalAssetsItem):
+	asset_editor.edit(id,item)
+	$VSplitContainer.queue_sort()
 
 func set_up_settings():
 	if !editorSettings.has_setting("Local_Assets/asset_dir"):
@@ -103,8 +106,8 @@ func set_editor_setting(s_name: String, value: Variant, type: Variant.Type):
 
 
 func _exit_tree():
-	if assetManager:
-		assetManager.quit()
+	if asset_manager:
+		asset_manager.quit()
 
 
 func _on_open_dir_pressed():
@@ -134,9 +137,9 @@ func search(search_string: String):
 	clear_items()
 
 	# Use AssetManager's search functionality
-	var results = assetManager.search(search_string, 1)
+	var results = asset_manager.search(search_string, 1)
 
-	if assetManager.get_error() != OK:
+	if asset_manager.get_error() != OK:
 		backgroundText.text = "Search failed"
 		backgroundText.show()
 		return
@@ -176,25 +179,25 @@ func load_assets():
 	thread.start(_scan_assets_thread.bind(assetPath.text))
 	await _wait_for_thread_non_blocking(thread)
 
-	if assetManager.get_error() != OK:
+	if asset_manager.get_error() != OK:
 		backgroundText.text = "Failed to scan directory"
 		return
 
 	# Get total count
-	var total_count = assetManager.get_asset_count()
+	var total_count = asset_manager.get_asset_count()
 
 	if total_count == 0:
 		backgroundText.text = "No assets found."
 		return
 
 	# Update pagination
-	%PaginationBar.total_pages = assetManager.get_pages()
+	%PaginationBar.total_pages = asset_manager.get_pages()
 	%PaginationBar.current_page = 1
 
 	# Load first page
-	var page_data = assetManager.get_assets(1)
+	var page_data = asset_manager.get_assets(1)
 
-	if assetManager.get_error() == OK and not page_data.assets.is_empty():
+	if asset_manager.get_error() == OK and not page_data.assets.is_empty():
 		add_items(page_data.assets)
 		save()
 		backgroundText.hide()
@@ -204,7 +207,7 @@ func load_assets():
 
 
 func _scan_assets_thread(path: String):
-	assetManager.find_assets(path)
+	asset_manager.find_assets(path)
 
 
 func add_items(_items: Array):
@@ -212,6 +215,7 @@ func add_items(_items: Array):
 		var asset_item: LocalAssetsItem = item.instantiate()
 		if asset_item:
 			asset_item.root = self
+			asset_item.asset = i
 			asset_item.asset_name = i.get("name", "")
 			asset_item.asset_path = i.get("path", "")
 			asset_item.tags = i.get("tags", [])
@@ -228,16 +232,16 @@ func add_items(_items: Array):
 func _on_pagination_bar_page_changed(new_page: int):
 	clear_items()
 
-	var page_data = assetManager.get_assets(new_page)
+	var page_data = asset_manager.get_assets(new_page)
 
-	if assetManager.get_error() == OK:
+	if asset_manager.get_error() == OK:
 		add_items(page_data.assets)
 
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE:
-		if assetManager:
-			assetManager.quit()
+		if asset_manager:
+			asset_manager.quit()
 
 
 func copy_asset(dir: String, asset_name: String):
@@ -258,8 +262,8 @@ func _wait_for_thread_non_blocking(thread: Thread) -> Variant:
 
 func _reset_db():
 	# Fully release the AssetManager to close all database connections
-	assetManager.quit()
-	assetManager = null
+	asset_manager.quit()
+	asset_manager = null
 
 	# Wait for RefCounted garbage collection to finalize the object
 	await get_tree().process_frame
@@ -276,11 +280,11 @@ func _reset_db():
 	await get_tree().process_frame
 
 	# Create new AssetManager
-	assetManager = AssetManager.new_db(db_path)
-	assetManager.set_preview_file_names(file_names)
-	assetManager.set_use_first_image(useFirstImage)
-	assetManager.set_use_folder_name(useFolderName)
-	assetManager.set_page_size(pageSize)
+	asset_manager = AssetManager.new_db(db_path)
+	asset_manager.set_preview_file_names(file_names)
+	asset_manager.set_use_first_image(useFirstImage)
+	asset_manager.set_use_folder_name(useFolderName)
+	asset_manager.set_page_size(pageSize)
 
 	clear_items()
 	if not assetPath.text.is_empty():
@@ -290,7 +294,7 @@ func _reset_db():
 
 
 func _on_tree_exiting() -> void:
-	if assetManager:
-		assetManager.quit()
+	if asset_manager:
+		asset_manager.quit()
 	command_palette.remove_command("localAssets/Reset_db")
 	

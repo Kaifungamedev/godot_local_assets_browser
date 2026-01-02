@@ -8,6 +8,8 @@ use regex::Regex;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct AssetData {
+    #[serde(default, skip)]
+    id: Option<i64>,
     path: String,
     name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -671,18 +673,20 @@ impl AssetManager {
         let conn = self.get_connection()?;
 
         let result = conn.query_row(
-            "SELECT name, path, image_path, tags FROM assets WHERE id = ?1",
+            "SELECT id, name, path, image_path, tags FROM assets WHERE id = ?1",
             params![id],
             |row| {
-                let name: String = row.get(0)?;
-                let path: String = row.get(1)?;
-                let image_path: Option<String> = row.get(2)?;
-                let tags_json: Option<String> = row.get(3)?;
+                let id: i64 = row.get(0)?;
+                let name: String = row.get(1)?;
+                let path: String = row.get(2)?;
+                let image_path: Option<String> = row.get(3)?;
+                let tags_json: Option<String> = row.get(4)?;
                 let tags: Vec<String> = tags_json
                     .and_then(|json| serde_json::from_str(&json).ok())
                     .unwrap_or_default();
 
                 Ok(AssetData {
+                    id: Some(id),
                     name,
                     path,
                     image_path,
@@ -701,19 +705,21 @@ impl AssetManager {
     fn fetch_assets_page(&self, offset: i64, limit: i64) -> SqlResult<Vec<AssetData>> {
         let conn = self.get_connection()?;
         let mut stmt = conn.prepare(
-            "SELECT name, path, image_path, tags FROM assets ORDER BY name LIMIT ?1 OFFSET ?2"
+            "SELECT id, name, path, image_path, tags FROM assets ORDER BY name LIMIT ?1 OFFSET ?2"
         )?;
 
         let assets = stmt.query_map(params![limit, offset], |row| {
-            let name: String = row.get(0)?;
-            let path: String = row.get(1)?;
-            let image_path: Option<String> = row.get(2)?;
-            let tags_json: Option<String> = row.get(3)?;
+            let id: i64 = row.get(0)?;
+            let name: String = row.get(1)?;
+            let path: String = row.get(2)?;
+            let image_path: Option<String> = row.get(3)?;
+            let tags_json: Option<String> = row.get(4)?;
             let tags: Vec<String> = tags_json
                 .and_then(|json| serde_json::from_str(&json).ok())
                 .unwrap_or_default();
 
             Ok(AssetData {
+                id: Some(id),
                 name,
                 path,
                 image_path,
@@ -807,21 +813,23 @@ impl AssetManager {
         )?;
 
         let mut stmt = conn.prepare(
-            "SELECT name, path, image_path, tags FROM assets
+            "SELECT id, name, path, image_path, tags FROM assets
              WHERE name LIKE ?1 OR path LIKE ?1 OR tags LIKE ?1
              ORDER BY name LIMIT ?2 OFFSET ?3"
         )?;
 
         let assets = stmt.query_map(params![&search_pattern, limit, offset], |row| {
-            let name: String = row.get(0)?;
-            let path: String = row.get(1)?;
-            let image_path: Option<String> = row.get(2)?;
-            let tags_json: Option<String> = row.get(3)?;
+            let id: i64 = row.get(0)?;
+            let name: String = row.get(1)?;
+            let path: String = row.get(2)?;
+            let image_path: Option<String> = row.get(3)?;
+            let tags_json: Option<String> = row.get(4)?;
             let tags: Vec<String> = tags_json
                 .and_then(|json| serde_json::from_str(&json).ok())
                 .unwrap_or_default();
 
             Ok(AssetData {
+                id: Some(id),
                 name,
                 path,
                 image_path,
@@ -987,6 +995,7 @@ impl AssetManager {
             // If we have an empty Asset.json file, write the auto-discovered data to it
             if has_asset_json {
                 let auto_data = AssetData {
+                    id: None,
                     name: folder_name.clone(),
                     path: path_str.clone(),
                     image_path: final_image.clone().or(Some(String::new())),  // Empty string if no image found
@@ -1014,6 +1023,12 @@ impl AssetManager {
 
     fn asset_to_dict(&self, asset: &AssetData) -> VarDictionary {
         let mut dict = VarDictionary::new();
+
+        // Include id if it exists
+        if let Some(id) = asset.id {
+            dict.set("id", id);
+        }
+
         dict.set("name", asset.name.clone());
         dict.set("path", asset.path.clone());
 
