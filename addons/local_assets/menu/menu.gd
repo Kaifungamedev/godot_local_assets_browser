@@ -150,8 +150,7 @@ func search(search_string: String):
 		return
 
 	# Update pagination
-	%PaginationBar.total_pages = results.num_of_pages
-	%PaginationBar.current_page = 1
+	update_pagination_bars(results.num_of_pages)
 
 	# Display results
 	add_items(results.assets)
@@ -191,8 +190,7 @@ func load_assets():
 		return
 
 	# Update pagination
-	%PaginationBar.total_pages = asset_manager.get_pages()
-	%PaginationBar.current_page = 1
+	update_pagination_bars(asset_manager.get_pages())
 
 	# Load first page
 	var page_data = asset_manager.get_assets(1)
@@ -292,6 +290,12 @@ func _reset_db():
 
 	print("Database reset complete")
 
+func update_pagination_bars(total_pages,current_page = 1):
+	var pagebars = get_tree().get_nodes_in_group("PageBarLocalAssets_sdlakjf")
+	for bar:LocalAssetsPaginationBar in pagebars:
+		if not bar.current_page == current_page or not bar.total_pages == total_pages:
+			bar.current_page = current_page
+			bar.total_pages = total_pages
 
 func _on_tree_exiting() -> void:
 	if asset_manager:
