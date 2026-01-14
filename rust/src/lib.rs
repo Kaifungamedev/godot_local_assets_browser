@@ -705,7 +705,7 @@ impl AssetManager {
     fn fetch_assets_page(&self, offset: i64, limit: i64) -> SqlResult<Vec<AssetData>> {
         let conn = self.get_connection()?;
         let mut stmt = conn.prepare(
-            "SELECT id, name, path, image_path, tags FROM assets ORDER BY name LIMIT ?1 OFFSET ?2"
+            "SELECT id, name, path, image_path, tags FROM assets ORDER BY name COLLATE NOCASE LIMIT ?1 OFFSET ?2"
         )?;
 
         let assets = stmt.query_map(params![limit, offset], |row| {
@@ -815,7 +815,7 @@ impl AssetManager {
         let mut stmt = conn.prepare(
             "SELECT id, name, path, image_path, tags FROM assets
              WHERE name LIKE ?1 OR path LIKE ?1 OR tags LIKE ?1
-             ORDER BY name LIMIT ?2 OFFSET ?3"
+                     ORDER BY name COLLATE NOCASE LIMIT ?2 OFFSET ?3"
         )?;
 
         let assets = stmt.query_map(params![&search_pattern, limit, offset], |row| {
