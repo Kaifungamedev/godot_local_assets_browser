@@ -99,3 +99,7 @@ func _on_open_file_pressed() -> void:
 
 func _on_toggle_pressed() -> void:
 	hide()
+
+
+func _exit_tree() -> void:
+	asset_manager = null  # Clear reference to prevent crash on hot-reload

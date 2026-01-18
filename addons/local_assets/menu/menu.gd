@@ -108,6 +108,7 @@ func set_editor_setting(s_name: String, value: Variant, type: Variant.Type):
 func _exit_tree():
 	if asset_manager:
 		asset_manager.quit()
+		asset_manager = null
 
 
 func _on_open_dir_pressed():
@@ -240,6 +241,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE:
 		if asset_manager:
 			asset_manager.quit()
+			asset_manager = null
 
 
 func copy_asset(dir: String, asset_name: String):
@@ -300,5 +302,6 @@ func update_pagination_bars(total_pages,current_page = 1):
 func _on_tree_exiting() -> void:
 	if asset_manager:
 		asset_manager.quit()
+		asset_manager = null  # Clear reference to prevent crash on hot-reload
 	command_palette.remove_command("localAssets/Reset_db")
 	
