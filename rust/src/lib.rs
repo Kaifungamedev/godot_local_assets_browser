@@ -57,13 +57,6 @@ impl AssetManager {
     /// Initialize a new AssetManager with a SQLite database.
     ///
     /// The database will be created if it doesn't exist. Creates tables for assets and deleted paths.
-    ///
-    /// [param db_path]: [String] Path to the SQLite database file (e.g. "user://assets.db")
-    /// [br][br][b]Returns:[/b] [AssetManager] A new AssetManager instance
-    /// [br][br]Example:
-    /// [codeblock]
-    /// var manager = AssetManager.new_db("user://assets.db")
-    /// [/codeblock]
     #[func]
     fn new_db(db_path: GString) -> Gd<Self> {
         // Convert Godot path (user://, res://, etc.) to real filesystem path
@@ -102,25 +95,13 @@ impl AssetManager {
     ///
     /// This prevents out-of-memory errors when retrieving large numbers of assets.
     /// Minimum value is 1.
-    ///
-    /// [param size]: [int] Maximum assets per page (minimum 1)
-    /// [br][br]Example:
-    /// [codeblock]
-    /// manager.set_page_size(100)
-    /// [/codeblock]
     #[func]
     fn set_page_size(&mut self, size: i64) {
         self.page_size = size.max(1);
     }
 
     /// Get the current page size.
-    ///
-    /// [b]Returns:[/b] [int] Current maximum number of assets per page
-    /// [br][br]Example:
-    /// [codeblock]
-    /// var size = manager.get_page_size()
-    /// print("Page size: ", size)
-    /// [/codeblock]
+
     #[func]
     fn get_page_size(&self) -> i64 {
         self.page_size
@@ -130,25 +111,14 @@ impl AssetManager {
     ///
     /// When scanning directories without Asset.json, looks for images with these base names.
     /// Supports both literal names and regex patterns. Also checks folder name as a fallback.
-    /// [br][br]
+    /// [br]
+    /// [br]
     /// Do not include file extensions - all supported image formats are automatically checked.
     /// [br]
     /// Patterns are treated as regex ONLY if they start with ^ (anchor).
     /// Otherwise treated as exact literal match (case-insensitive).
     /// [br]
-    /// Literal patterns match the filename stem exactly (without extension), case-insensitive.
-    /// Regex patterns have full control - use (?i) prefix for case-insensitive matching if desired.
-    /// Regex results are still filtered for supported image extensions.
-    ///
     /// [param file_names]: [Array] Array of filenames (without extensions) or regex patterns (e.g. ["Preview", "^(?i)thumb.*"])
-    /// [br][br]Examples:
-    /// [codeblock]
-    /// # Literal exact match (case-insensitive: matches Preview.png, preview.jpg, PREVIEW.webp but NOT Preview1)
-    /// manager.set_preview_file_names(["Preview", "Asset", "Thumbnail"])
-    /// [br]
-    /// # Regex patterns (must start with ^, use (?i) for case-insensitive)
-    /// manager.set_preview_file_names(["^(?i)preview.*", "^thumb(nail)?.*", "^.*_00"])
-    /// [/codeblock]
     #[func]
     fn set_preview_file_names(&mut self, file_names: Array<GString>) {
         self.preview_file_names = file_names.iter_shared()
@@ -160,12 +130,6 @@ impl AssetManager {
     ///
     /// When true, if none of the preview file names are found, uses the first image file
     /// with a supported extension (png, jpg, etc.).
-    ///
-    /// [param use_first]: [bool] Whether to use first image found as fallback
-    /// [br][br]Example:
-    /// [codeblock]
-    /// manager.set_use_first_image(true)
-    /// [/codeblock]
     #[func]
     fn set_use_first_image(&mut self, use_first: bool) {
         self.use_first_image = use_first;
@@ -176,27 +140,14 @@ impl AssetManager {
     /// When true, if none of the preview file names match, the scanner will look for
     /// an image file that matches the folder name (e.g., folder "MyAsset" looks for "MyAsset.png").
     /// This check happens before the first image fallback.
-    ///
-    /// [param use_folder]: [bool] Whether to use folder name as fallback
-    /// [br][br]Example:
-    /// [codeblock]
-    /// manager.set_use_folder_name(true)
-    /// [/codeblock]
+
     #[func]
     fn set_use_folder_name(&mut self, use_folder: bool) {
         self.use_folder_name = use_folder;
     }
 
     /// Get the total number of pages based on current page size.
-    ///
-    /// Calculates total pages by dividing total asset count by page size.
-    ///
     /// [b]Returns:[/b] [int] Total number of pages
-    /// [br][br]Example:
-    /// [codeblock]
-    /// var total_pages = manager.get_pages()
-    /// print("Total pages: ", total_pages)
-    /// [/codeblock]
     #[func]
     fn get_pages(&self) -> i64 {
         match self.get_connection() {
@@ -212,13 +163,7 @@ impl AssetManager {
     }
 
     /// Get the total number of assets in the database.
-    ///
     /// [b]Returns:[/b] [int] Total count of all assets
-    /// [br][br]Example:
-    /// [codeblock]
-    /// var count = manager.get_asset_count()
-    /// print("Total assets: ", count)
-    /// [/codeblock]
     #[func]
     fn get_asset_count(&self) -> i64 {
         match self.get_connection() {
@@ -231,36 +176,13 @@ impl AssetManager {
     }
 
     /// Get the last error that occurred.
-    ///
     /// [b]Returns:[/b] [Error] Error code from the last operation (OK if no error)
-    /// [br][br]Example:
-    /// [codeblock]
-    /// var error = manager.get_error()
-    /// if error != OK:
-    ///     print("Error occurred: ", error)
-    /// [/codeblock]
     #[func]
     fn get_error(&self) -> godot::global::Error {
         self.last_error
     }
 
     /// Scan a directory recursively to discover and add assets to the database.
-    ///
-    /// Discovers assets in two ways:
-    /// 1. Directories containing an Asset.json file (reads metadata from JSON)
-    /// 2. Directories containing supported image files (creates asset automatically)
-    /// [br]
-    /// Supported image formats: png, jpeg, jpg, bmp, tga, webp, svg
-    /// [br]
-    /// Skips paths that were previously deleted and marked with remember_deleted.
-    ///
-    /// [param path]: [String] Base directory path to scan (e.g. "res://assets/")
-    /// [br][br]Example:
-    /// [codeblock]
-    /// manager.find_assets("res://assets/models/")
-    /// if manager.get_error() != OK:
-    ///     print("Failed to scan directory")
-    /// [/codeblock]
     #[func]
     fn find_assets(&mut self, path: GString) {
         self.last_error = godot::global::Error::OK;
@@ -282,22 +204,6 @@ impl AssetManager {
     }
 
     /// Add a new asset to the database manually.
-    ///
-    /// Creates a new asset entry with the specified metadata. The path must be unique.
-    ///
-    /// [param name]: [String] Display name of the asset
-    /// [br][param path]: [String] Unique file system path to the asset directory
-    /// [br][param image_path]: [String] Path to preview image (empty string if none)
-    /// [br][param tags]: [Array] Array of string tags for categorization
-    /// [br][br][b]Returns:[/b] [int] Asset ID on success, -1 on failure
-    /// [br][br]Example:
-    /// [codeblock]
-    /// var tags = ["character", "fantasy"]
-    /// var id = manager.add_asset("Wizard", "res://assets/wizard/", "res://assets/wizard/preview.png", tags)
-    /// [br]
-    /// if id == -1:[br]
-    ///     print("Failed to add asset")
-    /// [/codeblock]
     #[func]
     fn add_asset(&mut self, name: GString, path: GString, image_path: GString, tags: Array<GString>) -> i64 {
         self.last_error = godot::global::Error::OK;
@@ -320,19 +226,6 @@ impl AssetManager {
     }
 
     /// Get a single asset by its ID.
-    ///
-    /// [param id]: [int] The unique asset ID
-    /// [br][br][b]Returns:[/b] [Dictionary] Asset dictionary with keys: name, path, image_path, tags
-    /// [br]If asset not found or error occurs, returns dictionary with "error" key
-    /// [br][br]Example:
-    /// [codeblock]
-    /// var asset = manager.get_asset(42)
-    /// if asset.has("error"):
-    ///     print("Asset not found")
-    /// else:
-    ///     print("Asset name: ", asset.name)
-    ///     print("Asset path: ", asset.path)
-    /// [/codeblock]
     #[func]
     fn get_asset(&mut self, id: i64) -> VarDictionary {
         self.last_error = godot::global::Error::OK;
@@ -356,23 +249,6 @@ impl AssetManager {
     }
 
     /// Get a page of assets from the database.
-    ///
-    /// Retrieves assets sorted by name with pagination support.
-    /// Page numbers start at 1.
-    ///
-    /// [param page]: [int] Page number to retrieve (minimum 1)
-    /// [br][br][b]Returns:[/b] [Dictionary] Dictionary with keys:
-    /// [br]- page_number: Current page number
-    /// [br]- page_size: Assets per page
-    /// [br]- num_of_pages: Total number of pages
-    /// [br]- assets: Array of asset dictionaries
-    /// [br][br]Example:
-    /// [codeblock]
-    /// var result = manager.get_assets(1)
-    /// print("Page ", result.page_number, " of ", result.num_of_pages)
-    /// for asset in result.assets:
-    ///     print(asset.name)
-    /// [/codeblock]
     #[func]
     fn get_assets(&mut self, page: i64) -> VarDictionary {
         self.last_error = godot::global::Error::OK;
@@ -402,24 +278,7 @@ impl AssetManager {
         }
     }
 
-    /// Update specific fields of an existing asset.
-    ///
-    /// Only updates fields present in the data dictionary. Other fields remain unchanged.
-    /// Valid keys: "name", "path", "image_path", "tags"
-    ///
-    /// [param id]: [int] The asset ID to update
-    /// [br][param data]: [Dictionary] Dictionary containing fields to update
-    /// [br][br][b]Returns:[/b] [Error] OK on success, error code on failure
-    /// [br][br]Example:
-    /// [codeblock]
-    /// var updates = {
-    ///     "name": "Updated Name",
-    ///     "tags": ["new_tag", "updated"]
-    /// }
-    /// var error = manager.update_asset(42, updates)
-    /// if error != OK:
-    ///     print("Update failed")
-    /// [/codeblock]
+    /// Update specific fields of an existing asset. the data dictionary is the same as the Asset.json file
     #[func]
     fn update_asset(&mut self, id: i64, data: VarDictionary) -> godot::global::Error {
         self.last_error = godot::global::Error::OK;
@@ -485,19 +344,8 @@ impl AssetManager {
     }
 
     /// Delete an asset from the database.
-    ///
-    /// Optionally remembers the deleted path to prevent re-discovery during future scans.
-    ///
     /// [param id]: [int] The asset ID to delete
     /// [br][param remember_deleted]: [bool] If true, marks the path as deleted to skip it in find_assets()
-    /// [br][br][b]Returns:[/b] [Error] OK on success, error code on failure
-    /// [br][br]Example:
-    /// [codeblock]
-    /// # Delete and remember to avoid re-adding
-    /// var error = manager.delete_asset(42, true)
-    /// if error == OK:
-    ///     print("Asset deleted")
-    /// [/codeblock]
     #[func]
     fn delete_asset(&mut self, id: i64, remember_deleted: bool) -> godot::global::Error {
         self.last_error = godot::global::Error::OK;
@@ -529,24 +377,8 @@ impl AssetManager {
     }
 
     /// Search for assets matching a query string.
-    ///
-    /// Searches in asset names, paths, and tags. Results are paginated like get_assets().
-    /// Case-insensitive partial matching is used (LIKE %query%).
-    ///
     /// [param query]: [String] Search string to match against
     /// [br][param page]: [int] Page number of results (minimum 1)
-    /// [br][br][b]Returns:[/b] [Dictionary] Dictionary with keys:
-    /// [br]- page_number: Current page number
-    /// [br]- page_size: Assets per page
-    /// [br]- num_of_pages: Total pages for this search
-    /// [br]- assets: Array of matching asset dictionaries
-    /// [br][br]Example:
-    /// [codeblock]
-    /// var results = manager.search("wizard", 1)
-    /// print("Found ", results.assets.size(), " results")
-    /// for asset in results.assets:
-    ///     print("Match: ", asset.name)
-    /// [/codeblock]
     #[func]
     fn search(&mut self, query: GString, page: i64) -> VarDictionary {
         self.last_error = godot::global::Error::OK;
@@ -575,35 +407,6 @@ impl AssetManager {
             }
         }
     }
-
-    /// Flush any pending database changes to disk.
-    ///
-    /// Note: With SQLite, changes are committed immediately by default.
-    /// This function exists for API compatibility with the original GDScript implementation.
-    /// [br][br]Example:
-    /// [codeblock]
-    /// manager.flush()
-    /// [/codeblock]
-    #[func]
-    fn flush(&mut self) {
-        // With rusqlite, changes are committed immediately by default
-        // This function is here for API compatibility
-    }
-
-    /// Clean up and close the database connection.
-    ///
-    /// Note: The database connection is automatically closed when the AssetManager is freed.
-    /// This function exists for API compatibility with the original GDScript implementation.
-    /// [br][br]Example:
-    /// [codeblock]
-    /// manager.quit()
-    /// [/codeblock]
-    #[func]
-    fn quit(&mut self) {
-        // Cleanup if needed
-        // Connection will be closed when dropped
-    }
-
     // Helper methods (not exposed to GDScript)
 
     fn get_connection(&self) -> SqlResult<Connection> {
@@ -802,6 +605,19 @@ impl AssetManager {
         result.is_ok()
     }
 
+    fn remove_assets_in_subdirs(&self, parent_path: &str) -> SqlResult<usize> {
+        let conn = self.get_connection()?;
+        let pattern = format!("{}/%", parent_path);
+        let deleted = conn.execute(
+            "DELETE FROM assets WHERE path LIKE ?1",
+            params![pattern],
+        )?;
+        if deleted > 0 {
+            godot_print!("AssetManager: Removed {} assets from subdirectories of {}", deleted, parent_path);
+        }
+        Ok(deleted)
+    }
+
     fn search_assets(&self, query: &str, offset: i64, limit: i64) -> SqlResult<(Vec<AssetData>, i64)> {
         let conn = self.get_connection()?;
         let search_pattern = format!("%{}%", query);
@@ -879,11 +695,11 @@ impl AssetManager {
             let has_asset_json = asset_json.exists();
 
             if has_asset_json {
+                let _ = self.remove_assets_in_subdirs(&path_str);
+
                 if let Ok(content) = std::fs::read_to_string(&asset_json) {
-                    // Try to parse, but if it's empty/invalid, we'll auto-fill it
                     let asset_json_data = serde_json::from_str::<AssetData>(&content).ok();
 
-                    // If we successfully parsed and have both name and path, use it as-is
                     if let Some(ref data) = asset_json_data {
                         if !data.name.is_empty() && !data.path.is_empty() {
                             let _ = self.insert_asset(
@@ -897,7 +713,6 @@ impl AssetManager {
                         }
                     }
                 }
-                // If we reach here, Asset.json exists but is empty/incomplete - will auto-fill below
             }
 
             // Look for preview image files

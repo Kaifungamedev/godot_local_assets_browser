@@ -6,6 +6,7 @@ var main_panel_instance
 
 func _enter_tree():
 	main_panel_instance = load("res://addons/local_assets/menu/menu.tscn").instantiate()
+	main_panel_instance.set("process_mode",PROCESS_MODE_INHERIT)
 	# Add the main panel to the editor's main viewport.
 	EditorInterface.get_editor_main_screen().add_child(main_panel_instance)
 	# Hide the main panel. Very much required.
@@ -14,7 +15,8 @@ func _enter_tree():
 
 func _exit_tree():
 	if main_panel_instance:
-		main_panel_instance.queue_free()
+		EditorInterface.get_editor_main_screen().remove_child(main_panel_instance)
+		main_panel_instance.free()
 
 
 func _has_main_screen():

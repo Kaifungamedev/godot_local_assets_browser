@@ -102,4 +102,4 @@ func _on_toggle_pressed() -> void:
 
 
 func _exit_tree() -> void:
-	asset_manager = null  # Clear reference to prevent crash on hot-reload
+	asset_manager = null

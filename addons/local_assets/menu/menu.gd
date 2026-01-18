@@ -26,8 +26,9 @@ func _ready():
 	)
 	set_up_settings()
 	_eSettings_changed()
-	# external_command is a function that will be called with the command is executed.
-	command_palette.add_command("Reset_db", "localAssets/Reset_db", Callable(self, "_reset_db"))
+	if not process_mode == PROCESS_MODE_DISABLED:
+		# external_command is a function that will be called with the command is executed.
+		command_palette.add_command("Reset_db", "localAssets/Reset_db", Callable(self, "_reset_db"))
 
 	# Initialize AssetManager with database
 	asset_manager = AssetManager.new_db(db_path)
@@ -107,7 +108,7 @@ func set_editor_setting(s_name: String, value: Variant, type: Variant.Type):
 
 func _exit_tree():
 	if asset_manager:
-		asset_manager.quit()
+
 		asset_manager = null
 
 
@@ -240,7 +241,7 @@ func _on_pagination_bar_page_changed(new_page: int):
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE:
 		if asset_manager:
-			asset_manager.quit()
+	
 			asset_manager = null
 
 
@@ -262,7 +263,6 @@ func _wait_for_thread_non_blocking(thread: Thread) -> Variant:
 
 func _reset_db():
 	# Fully release the AssetManager to close all database connections
-	asset_manager.quit()
 	asset_manager = null
 
 	# Wait for RefCounted garbage collection to finalize the object
@@ -301,7 +301,6 @@ func update_pagination_bars(total_pages,current_page = 1):
 
 func _on_tree_exiting() -> void:
 	if asset_manager:
-		asset_manager.quit()
 		asset_manager = null  # Clear reference to prevent crash on hot-reload
 	command_palette.remove_command("localAssets/Reset_db")
 	
