@@ -17,6 +17,7 @@ func _ready():
 	file_diolog.access = EditorFileDialog.ACCESS_FILESYSTEM
 	file_diolog.file_mode = EditorFileDialog.FILE_MODE_OPEN_FILE
 	file_diolog.filters = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg", "*.png *.jpeg *.jpg *.bmp *.tga *.webp *.svg ; All suported images"]
+	file_diolog.file_selected.connect(_on_file_selected)
 	add_child(file_diolog)
 	asset_image_path_button.icon = EditorInterface.get_editor_theme().get_icon(
 		"Folder", "EditorIcons"
@@ -61,12 +62,12 @@ func _set_image():
 
 
 func _on_save_pressed() -> void:
-	var _tags: Array = Array()
+	var _tags: Array[String] = []
 	for i in asset_tags.text.split(","):
 		var tag = i.strip_edges()
 		if not tag.is_empty():
 			_tags.append(tag)
-	
+
 	var asset_dict:Dictionary = {
 	"path":asset_path.text,
 	"name":asset_name.text,
@@ -74,12 +75,17 @@ func _on_save_pressed() -> void:
 	"tags":_tags
 	}
 	item.set_from_asset_dict(asset_dict)
-	FileAccess.open(asset_dict.path.path_join("Asset.json"),FileAccess.WRITE).store_string(JSON.stringify(asset_dict,"\t"))
+	var file = FileAccess.open(asset_dict.path.path_join("Asset.json"),FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(asset_dict,"\t"))
+		file.close()
 	asset_dict["id"] = asset["id"]
 	item.asset = asset_dict
 	var error = asset_manager.update_asset(asset["id"],asset_dict)
-	if error != OK: 
-		print("Update failed")
+	if error != OK:
+		print("AssetManager: Update failed: ", error)
+	else:
+		print("AssetManager: Updated")
 	item.update()
 
 
@@ -95,6 +101,9 @@ func _on_image_path_text_changed(new_text: String) -> void:
 
 func _on_open_file_pressed() -> void:
 	file_diolog.popup_file_dialog()
+
+func _on_file_selected(path: String) -> void:
+	asset_image_path.text = path
 
 
 func _on_toggle_pressed() -> void:

@@ -620,21 +620,64 @@ impl AssetManager {
 
     fn search_assets(&self, query: &str, offset: i64, limit: i64) -> SqlResult<(Vec<AssetData>, i64)> {
         let conn = self.get_connection()?;
-        let search_pattern = format!("%{}%", query);
 
-        let total_count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM assets WHERE name LIKE ?1 OR path LIKE ?1 OR tags LIKE ?1",
-            params![&search_pattern],
-            |row| row.get(0),
-        )?;
+        // Parse query: separate regular terms from tag: terms
+        let mut general_terms: Vec<String> = Vec::new();
+        let mut tag_terms: Vec<String> = Vec::new();
 
-        let mut stmt = conn.prepare(
-            "SELECT id, name, path, image_path, tags FROM assets
-             WHERE name LIKE ?1 OR path LIKE ?1 OR tags LIKE ?1
-                     ORDER BY name COLLATE NOCASE LIMIT ?2 OFFSET ?3"
-        )?;
+        for part in query.split_whitespace() {
+            if let Some(tag) = part.strip_prefix("tag:") {
+                if !tag.is_empty() {
+                    tag_terms.push(tag.to_string());
+                }
+            } else {
+                general_terms.push(part.to_string());
+            }
+        }
 
-        let assets = stmt.query_map(params![&search_pattern, limit, offset], |row| {
+        // Build WHERE clause dynamically
+        let mut conditions: Vec<String> = Vec::new();
+        let mut params_vec: Vec<String> = Vec::new();
+
+        for term in &general_terms {
+            let pattern = format!("%{}%", term);
+            let idx = params_vec.len() + 1;
+            conditions.push(format!("(name LIKE ?{} OR path LIKE ?{} OR tags LIKE ?{})", idx, idx, idx));
+            params_vec.push(pattern);
+        }
+
+        for tag in &tag_terms {
+            let pattern = format!("%{}%", tag);
+            let idx = params_vec.len() + 1;
+            conditions.push(format!("tags LIKE ?{}", idx));
+            params_vec.push(pattern);
+        }
+
+        if conditions.is_empty() {
+            return Ok((Vec::new(), 0));
+        }
+
+        let where_clause = conditions.join(" AND ");
+        let count_sql = format!("SELECT COUNT(*) FROM assets WHERE {}", where_clause);
+        let search_sql = format!(
+            "SELECT id, name, path, image_path, tags FROM assets WHERE {} ORDER BY name COLLATE NOCASE LIMIT ?{} OFFSET ?{}",
+            where_clause,
+            params_vec.len() + 1,
+            params_vec.len() + 2
+        );
+
+        let total_count: i64 = {
+            let mut stmt = conn.prepare(&count_sql)?;
+            let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+            stmt.query_row(params_refs.as_slice(), |row| row.get(0))?
+        };
+
+        let mut stmt = conn.prepare(&search_sql)?;
+        let mut all_params: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+        all_params.push(&limit);
+        all_params.push(&offset);
+
+        let assets = stmt.query_map(all_params.as_slice(), |row| {
             let id: i64 = row.get(0)?;
             let name: String = row.get(1)?;
             let path: String = row.get(2)?;
