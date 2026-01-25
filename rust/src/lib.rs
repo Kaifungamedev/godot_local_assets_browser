@@ -868,10 +868,10 @@ impl AssetManager {
 
             if let Some(image_path) = final_image {
                 let _ = self.insert_asset(&folder_name, &path_str, Some(&image_path), &[]);
-                // Skip subdirectories since we found an asset here
                 walker.skip_current_dir();
             } else if has_asset_json {
-                // Even without an image, if we had an empty Asset.json, skip subdirectories
+                // Insert asset even without an image if Asset.json exists
+                let _ = self.insert_asset(&folder_name, &path_str, None, &[]);
                 walker.skip_current_dir();
             }
         }
