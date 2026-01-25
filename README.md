@@ -34,7 +34,12 @@ When a directory contains an asset, subdirectories are skipped to avoid nested a
 | `Local_Assets/page_size` | Number of assets to load per page (default: 50). Adjust for performance vs. convenience.  |
 | `Local_Assets/use_uniform_image_size` | Force all images to be a uniform size.  |
 | `Local_Assets/uniform_image_size` | Overrides all image sizes. Requires `Local_Assets/use_uniform_image_size` to be on.  |  
-
+## Commands
+| Command | Description
+| -------- | ------- |
+| `Reset DB` | Removes the Database file and creates a new one. this **will not** delete anything edited by the asset editor |
+| `Add template` (Linux only) | Adds the `Asset.json` template to your `HOME/Templates` folder |
+| `Remove template` (Linux only) | Removes the template from `HOME/Templates` |
 ## Troubleshooting
 
 ### Assets Don't Show Up

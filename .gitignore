@@ -11,3 +11,6 @@ addons/local_assets/bin/*
 !addons/local_assets/bin/AssetManager.gdextension
 # commit tracker (i should realy start making smaller commits lol)
 COMMIT_MESSAGE.txt
+
+#vscode settings
+.vscode/*

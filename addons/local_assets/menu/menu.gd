@@ -8,7 +8,6 @@ class_name LocalAssets extends Control
 @onready var db_path: String = EditorInterface.get_editor_paths().get_data_dir().path_join("assets.db")
 @onready var asset_editor:LocalAssetsAssetEditor = $VSplitContainer/AssetEditor
 var editorSettings: EditorSettings = EditorInterface.get_editor_settings()
-var command_palette = EditorInterface.get_command_palette()
 var file_names: PackedStringArray
 var useFirstImage: bool
 var useFolderName: bool
@@ -18,7 +17,6 @@ var asset_manager: AssetManager
 var pageSize:int = 50
 var item = load("res://addons/local_assets/Components/Item/Item.tscn")
 
-
 func _ready():
 	editorSettings.settings_changed.connect(_eSettings_changed)
 	$VSplitContainer/VBoxContainer/TopBar/path/OpenDir.icon = EditorInterface.get_editor_theme().get_icon(
@@ -26,9 +24,7 @@ func _ready():
 	)
 	set_up_settings()
 	_eSettings_changed()
-	if not process_mode == PROCESS_MODE_DISABLED:
-		# external_command is a function that will be called with the command is executed.
-		command_palette.add_command("Reset_db", "localAssets/Reset_db", Callable(self, "_reset_db"))
+		
 
 	# Initialize AssetManager with database
 	asset_manager = AssetManager.new_db(db_path)
@@ -302,5 +298,4 @@ func update_pagination_bars(total_pages,current_page = 1):
 func _on_tree_exiting() -> void:
 	if asset_manager:
 		asset_manager = null  # Clear reference to prevent crash on hot-reload
-	command_palette.remove_command("localAssets/Reset_db")
 	
