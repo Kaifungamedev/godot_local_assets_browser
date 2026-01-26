@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "AssetManager"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "godot",
  "regex",
@@ -158,8 +158,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f6fc4dde5748e86417ee875e8ef4396a103b29b5189b54a10863afb9604c646"
 dependencies = [
  "godot-bindings",
- "litrs",
- "markdown",
  "proc-macro2",
  "quote",
  "venial",
@@ -210,24 +208,6 @@ dependencies = [
  "cc",
  "pkg-config",
  "vcpkg",
-]
-
-[[package]]
-name = "litrs"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
-dependencies = [
- "proc-macro2",
-]
-
-[[package]]
-name = "markdown"
-version = "1.0.0-alpha.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9047e0a37a596d4e15411a1ffbdabe71c328908cb90a721cb9bf8dcf3434e6d2"
-dependencies = [
- "unicode-id",
 ]
 
 [[package]]
@@ -404,12 +384,6 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
-
-[[package]]
-name = "unicode-id"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70ba288e709927c043cbe476718d37be306be53fb1fafecd0dbe36d072be2580"
 
 [[package]]
 name = "unicode-ident"
