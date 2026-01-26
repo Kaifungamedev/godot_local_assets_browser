@@ -55,7 +55,7 @@ func _create_page_button(page: int) -> Button:
 	var button = Button.new()
 	button.text = str(page)
 	button.custom_minimum_size = Vector2(button_width, 0)
-	button.connect("pressed", _on_page_button_pressed.bind(page))
+	button.connect("pressed", on_page_button_pressed.bind(page))
 	add_child(button)
 	return button
 
@@ -66,9 +66,10 @@ func _on_nav_button_pressed(target_page: int) -> void:
 	_draw_pagination()
 
 
-func _on_page_button_pressed(page: int) -> void:
+func on_page_button_pressed(page: int,quiet = false) -> void:
 	current_page = page
-	emit_signal("page_changed", current_page)
+	if !quiet:
+		emit_signal("page_changed", current_page)
 	_draw_pagination()
 
 

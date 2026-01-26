@@ -221,6 +221,9 @@ func _on_pagination_bar_page_changed(new_page: int):
 	var page_data = asset_manager.get_assets(new_page)
 	if asset_manager.get_error() == OK:
 		add_items(page_data.assets)
+	var pagebars = get_tree().get_nodes_in_group("PageBarLocalAssets_sdlakjf")
+	for bar: LocalAssetsPaginationBar in pagebars:
+		bar.on_page_button_pressed(new_page,true)
 
 
 func _notification(what: int) -> void:
