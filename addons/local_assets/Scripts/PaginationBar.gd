@@ -1,16 +1,14 @@
 @tool
-extends HBoxContainer
-
-class_name LocalAssetsPaginationBar
+class_name LocalAssetsPaginationBar extends HBoxContainer
 
 signal page_changed(new_page: int)
 
-var total_pages: int = 1:  # Adjust this to the number of total pages
+var total_pages: int = 1:
 	set(v):
 		total_pages = v
 		_draw_pagination()
 var current_page: int = 1
-var max_visible_buttons: int = 10  # Maximum number of visible buttons
+var max_visible_buttons: int = 10
 var button_width: int = 40
 
 
@@ -19,23 +17,18 @@ func _ready():
 
 
 func _draw_pagination():
-	clear()  # Remove all existing buttons before redrawing
-	# First and Previous Buttons
+	clear()
 	_create_nav_button("First", 1, current_page > 1)
 	_create_nav_button("Previous", current_page - 1, current_page > 1)
 
-	# Page Buttons
 	var start_page = max(1, current_page - 5)
 	var end_page = min(total_pages, start_page + max_visible_buttons - 1)
 
-	# Adjust page buttons when near the end of the pagination
 	if current_page > 5:
 		if total_pages - current_page < 5:
-			# Show last 10 pages when close to the last page
 			start_page = max(1, total_pages - max_visible_buttons + 1)
 			end_page = total_pages
 		else:
-			# Normal behavior: Keep current page centered
 			start_page = max(1, current_page - 4)
 			end_page = min(total_pages, current_page + 5)
 
@@ -45,7 +38,6 @@ func _draw_pagination():
 			page_button.button_pressed = true
 			page_button.disabled = true
 
-	# Next and Last Buttons
 	_create_nav_button("Next", current_page + 1, current_page < total_pages)
 	_create_nav_button("Last", total_pages, current_page < total_pages)
 
@@ -80,7 +72,6 @@ func _on_page_button_pressed(page: int) -> void:
 	_draw_pagination()
 
 
-# Clears the HBoxContainer before redrawing the buttons
 func clear() -> void:
 	for child in get_children():
 		child.queue_free()
