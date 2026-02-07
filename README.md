@@ -8,13 +8,9 @@ An asset browser for local assets
 2. Wait for all the assets to appear.  
 3. Find the asset you want and click `import`.  
 4. The assets will be in `res://Assets/{asset_name}`.  
-<!--
-> [!CAUTION]  
-> Currently loading hundreds of gigabytes of assets may crash the editor.  
-> A fix is in the works.--> 
 
 ## Asset Discovery
-The addon uses a Rust GDExtension with SQLite database for fast asset management. Assets are discovered by:
+The addon uses a Rust GDExtension with a SQLite database for fast asset management. Assets are discovered by:
 
 1. **Asset.json files** - Explicitly define an asset with metadata (name, path, preview image, tags)
    - **Auto-fill feature**: If an Asset.json file exists but is empty or incomplete, the scanner will automatically fill it with discovered data (folder name, preview image, etc.)
@@ -28,8 +24,8 @@ When a directory contains an asset, subdirectories are skipped to avoid nested a
 | Editor Setting | Description |
 | -------- | ------- |
 | `Local_Assets/asset_dir` | Directory to look for the assets. Mainly used to keep the same directory across projects.  |
-| `Local_Assets/File_preview_names` | An array of preview filename patterns (do not include file extensions - they're automatically checked). Literal names like `"Preview"` match exactly that filename (case-insensitive). Regex patterns starting with `^` allow flexible matching with full regex control (e.g., `"^(?i)preview.*"` for case-insensitive, `"^.*_00"` for case-sensitive). All supported image formats (png, jpg, webp, etc.) are automatically checked.  |
-| `Local_Assets/use_folder_name` | If no preview pattern matches, look for an image file matching the folder name (default: true). For example, folder "MyAsset" will look for "MyAsset.png", "MyAsset.jpg", etc.  |
+| `Local_Assets/File_preview_names` | An array of preview filename patterns (do not include file extensions - they're automatically checked). Literal names like `"Preview"` match exactly that filename (case-insensitive). Regex patterns starting with `^` allow flexible matching with full regex control (e.g., `"^(?i)preview.*"` for case-insensitive, `"^.*_00"` for case-sensitive). All supported image formats (PNG, JPG, WebP, etc.) are automatically checked.  |
+| `Local_Assets/use_folder_name` | If no preview pattern matches, look for an image file matching the folder name (default: true). For example, folder "MyAsset" will look for "MyAsset.png", "MyAsset.jpg", etc |
 | `Local_Assets/use_first_image_found` | If no preview pattern or folder name matches, use the first image file found (default: false).  |
 | `Local_Assets/page_size` | Number of assets to load per page (default: 50). Adjust for performance vs. convenience.  |
 | `Local_Assets/use_uniform_image_size` | Force all images to be a uniform size.  |
@@ -37,16 +33,16 @@ When a directory contains an asset, subdirectories are skipped to avoid nested a
 ## Commands
 | Command | Description
 | -------- | ------- |
-| `Reset DB` | Removes the Database file and creates a new one. this **will not** delete anything edited by the asset editor |
+| `Reset DB` | Removes the Database file and creates a new one. This **will not** delete anything saved in an `Asset.json` file. |
 | `Add template` (Linux only) | Adds the `Asset.json` template to your `HOME/Templates` folder |
 | `Remove template` (Linux only) | Removes the template from `HOME/Templates` |
 ## Troubleshooting
 
 ### Assets Don't Show Up
-If assets don't appear, the addon may not be finding matching preview images. Solutions:
+If assets don't appear, the addon may not be able to find matching preview images. Solutions:
 
 1. **Add preview file patterns** in `EditorSettings -> Local_Assets -> File_preview_names`:
-   - Exact literal names (no extension needed, case-insensitive): `["Preview", "Thumbnail", "Asset"]` - matches Preview.png, preview.jpg, etc. but NOT Preview1 or Preview_alt
+   - Exact literal names (no extension needed, case-insensitive): `["Preview", "Thumbnail", "Asset"]` - matches Preview.png, preview.jpg, etc., but NOT Preview1 or Preview_alt
    - Regex patterns (must start with `^`, no extension needed):
      - Case-insensitive: `["^(?i)preview.*", "^(?i)thumb(nail)?.*"]` - matches Preview1.png, THUMBNAIL_alt.jpg, etc.
      - Case-sensitive: `["^.*_00", "^car_.*"]` - matches car_00.webp but NOT CAR_00.png
@@ -79,7 +75,7 @@ If assets don't appear, the addon may not be finding matching preview images. So
 The addon uses an SQLite database (`<EditorDataFolder>/local_assets.db`) to cache asset information. If you experience issues:
 
 1. **Reset the database** using the command palette: `Ctrl+Shift+P` → "Reset_db"
-2. The database will be automatically recreated and assets rescanned
+2. The database will be automatically recreated, and assets rescanned
 
 ### Performance
 - Adjust `Local_Assets/page_size` if loading many assets feels slow or you want to see more at once
