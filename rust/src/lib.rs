@@ -267,7 +267,7 @@ impl AssetManager {
                 for asset in &assets {
                     assets_array.push(&self.asset_to_dict(asset).to_variant());
                 }
-                dict.set("assets", assets_array);
+                dict.set("assets", &assets_array);
                 dict
             }
             Err(e) => {
@@ -298,26 +298,26 @@ impl AssetManager {
             let key_str = key.to_string();
             match key_str.as_str() {
                 "name" => {
-                    if let Some(val) = data.get(key) {
+                    if let Some(val) = data.get(&key) {
                         name = Some(val.to_string());
                         valid_keys += 1;
                     }
                 }
                 "path" => {
-                    if let Some(val) = data.get(key) {
+                    if let Some(val) = data.get(&key) {
                         path = Some(val.to_string());
                         valid_keys += 1;
                     }
                 }
                 "image_path" => {
-                    if let Some(val) = data.get(key) {
+                    if let Some(val) = data.get(&key) {
                         let val_str = val.to_string();
                         image_path = Some(if val_str.is_empty() { None } else { Some(val_str) });
                         valid_keys += 1;
                     }
                 }
                 "tags" => {
-                    if let Some(val) = data.get(key) {
+                    if let Some(val) = data.get(&key) {
                         if let Ok(arr) = val.try_to::<Array<GString>>() {
                             tags = Some(arr.iter_shared().map(|s| s.to_string()).collect());
                             valid_keys += 1;
@@ -397,7 +397,7 @@ impl AssetManager {
                 for asset in &assets {
                     assets_array.push(&self.asset_to_dict(asset).to_variant());
                 }
-                dict.set("assets", assets_array);
+                dict.set("assets", &assets_array);
                 dict
             }
             Err(e) => {
@@ -407,6 +407,180 @@ impl AssetManager {
             }
         }
     }
+    /// Scan a directory recursively to discover and add individual asset files to the database.
+    ///
+    /// [param path]: [String] Directory to scan.
+    /// [br][param extensions]: [PackedStringArray] File extensions (without dot) to include, e.g. ["png", "obj"].
+    /// macOS resource-fork folders ([code]__MACOSX[/code]) are ignored.
+    #[func]
+    fn find_individual_assets(&mut self, path: GString, extensions: PackedStringArray) {
+        self.last_error = godot::global::Error::OK;
+
+        let real_path = if path.to_string().starts_with("user://") ||
+                          path.to_string().starts_with("res://") {
+            ProjectSettings::singleton()
+                .globalize_path(&path)
+                .to_string()
+        } else {
+            path.to_string()
+        };
+
+        let mut exts: Vec<String> = Vec::new();
+        for i in 0..extensions.len() {
+            if let Some(s) = extensions.get(i) {
+                exts.push(s.to_string());
+            }
+        }
+
+        if let Err(e) = self.scan_individual_directory(real_path, exts) {
+            godot_error!("Error finding individual assets: {}", e);
+            self.last_error = godot::global::Error::ERR_FILE_CANT_READ;
+        }
+    }
+
+    /// Get a single individual asset by its ID.
+    #[func]
+    fn get_individual_asset(&mut self, id: i64) -> VarDictionary {
+        self.last_error = godot::global::Error::OK;
+
+        match self.fetch_individual_asset(id) {
+            Ok(Some(asset)) => self.asset_to_dict(&asset),
+            Ok(None) => {
+                self.last_error = godot::global::Error::ERR_DOES_NOT_EXIST;
+                let mut dict = VarDictionary::new();
+                dict.set("error", "Asset not found");
+                dict
+            }
+            Err(e) => {
+                godot_error!("Failed to get individual asset: {}", e);
+                self.last_error = godot::global::Error::ERR_DATABASE_CANT_READ;
+                let mut dict = VarDictionary::new();
+                dict.set("error", e.to_string());
+                dict
+            }
+        }
+    }
+
+    /// Get a page of individual assets from the database.
+    #[func]
+    fn get_individual_assets(&mut self, page: i64) -> VarDictionary {
+        self.last_error = godot::global::Error::OK;
+
+        let page = page.max(1);
+        let offset = (page - 1) * self.page_size;
+
+        match self.fetch_individual_assets_page(offset, self.page_size) {
+            Ok(assets) => {
+                let mut dict = VarDictionary::new();
+                dict.set("page_number", page);
+                dict.set("page_size", self.page_size);
+                dict.set("num_of_pages", self.get_individual_asset_pages());
+
+                let mut assets_array = VarArray::new();
+                for asset in &assets {
+                    assets_array.push(&self.asset_to_dict(asset).to_variant());
+                }
+                dict.set("assets", &assets_array);
+                dict
+            }
+            Err(e) => {
+                godot_error!("Failed to get individual assets: {}", e);
+                self.last_error = godot::global::Error::ERR_DATABASE_CANT_READ;
+                VarDictionary::new()
+            }
+        }
+    }
+
+    /// Get the total number of individual assets in the database.
+    #[func]
+    fn get_individual_asset_count(&self) -> i64 {
+        match self.get_connection() {
+            Ok(conn) => {
+                conn.query_row("SELECT COUNT(*) FROM individual_assets", [], |row| row.get(0))
+                    .unwrap_or(0)
+            }
+            Err(_) => 0,
+        }
+    }
+
+    /// Get the total number of individual asset pages based on current page size.
+    #[func]
+    fn get_individual_asset_pages(&self) -> i64 {
+        match self.get_connection() {
+            Ok(conn) => {
+                let count: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM individual_assets", [], |row| row.get(0))
+                    .unwrap_or(0);
+
+                (count + self.page_size - 1) / self.page_size
+            }
+            Err(_) => 0,
+        }
+    }
+
+    /// Search for individual assets matching a query string.
+    #[func]
+    fn search_individual_assets(&mut self, query: GString, page: i64) -> VarDictionary {
+        self.last_error = godot::global::Error::OK;
+
+        let page = page.max(1);
+        let offset = (page - 1) * self.page_size;
+
+        match self.search_individual(&query.to_string(), offset, self.page_size) {
+            Ok((assets, total_count)) => {
+                let mut dict = VarDictionary::new();
+                dict.set("page_number", page);
+                dict.set("page_size", self.page_size);
+                dict.set("num_of_pages", (total_count + self.page_size - 1) / self.page_size);
+
+                let mut assets_array = VarArray::new();
+                for asset in &assets {
+                    assets_array.push(&self.asset_to_dict(asset).to_variant());
+                }
+                dict.set("assets", &assets_array);
+                dict
+            }
+            Err(e) => {
+                godot_error!("Failed to search individual assets: {}", e);
+                self.last_error = godot::global::Error::ERR_DATABASE_CANT_READ;
+                VarDictionary::new()
+            }
+        }
+    }
+
+    /// Delete an individual asset from the database.
+    /// [param id]: [int] The individual asset ID to delete.
+    /// [br][param remember_deleted]: [bool] If true, marks the path as deleted to skip it on future scans.
+    #[func]
+    fn delete_individual_asset(&mut self, id: i64, remember_deleted: bool) -> godot::global::Error {
+        self.last_error = godot::global::Error::OK;
+
+        let path = if remember_deleted {
+            match self.fetch_individual_asset(id) {
+                Ok(Some(asset)) => Some(asset.path),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        match self.remove_individual_asset(id) {
+            Ok(_) => {
+                if let Some(p) = path {
+                    if let Err(e) = self.mark_deleted(&p) {
+                        godot_error!("Failed to mark as deleted: {}", e);
+                    }
+                }
+                godot::global::Error::OK
+            }
+            Err(e) => {
+                godot_error!("Failed to delete individual asset: {}", e);
+                self.last_error = godot::global::Error::ERR_DATABASE_CANT_WRITE;
+                self.last_error
+            }
+        }
+    }
+
     // Helper methods (not exposed to GDScript)
 
     fn get_connection(&self) -> SqlResult<Connection> {
@@ -441,6 +615,27 @@ impl AssetManager {
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_assets_path ON assets(path)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS individual_assets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                image_path TEXT,
+                tags TEXT
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_individual_assets_name ON individual_assets(name)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_individual_assets_path ON individual_assets(path)",
             [],
         )?;
 
@@ -719,6 +914,12 @@ impl AssetManager {
                 continue;
             }
 
+            // Skip macOS resource-fork folders (and everything inside them)
+            if path.components().any(|c| c.as_os_str() == "__MACOSX") {
+                walker.skip_current_dir();
+                continue;
+            }
+
             let path_str = path.to_string_lossy().to_string();
 
             // Check if already deleted
@@ -879,6 +1080,203 @@ impl AssetManager {
         Ok(())
     }
 
+    fn row_to_asset(row: &rusqlite::Row) -> SqlResult<AssetData> {
+        let id: i64 = row.get(0)?;
+        let name: String = row.get(1)?;
+        let path: String = row.get(2)?;
+        let image_path: Option<String> = row.get(3)?;
+        let tags_json: Option<String> = row.get(4)?;
+        let tags: Vec<String> = tags_json
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default();
+
+        Ok(AssetData {
+            id: Some(id),
+            name,
+            path,
+            image_path,
+            tags,
+        })
+    }
+
+    fn individual_path_exists(&self, path: &str) -> bool {
+        let conn = match self.get_connection() {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+
+        let result: Result<i64, _> = conn.query_row(
+            "SELECT 1 FROM individual_assets WHERE path = ?1",
+            params![path],
+            |row| row.get(0),
+        );
+
+        result.is_ok()
+    }
+
+    fn insert_individual_asset(&self, name: &str, path: &str, image_path: &str) -> SqlResult<i64> {
+        let conn = self.get_connection()?;
+
+        conn.execute(
+            "INSERT INTO individual_assets (name, path, image_path, tags) VALUES (?1, ?2, ?3, '[]')",
+            params![name, path, image_path],
+        )?;
+
+        Ok(conn.last_insert_rowid())
+    }
+
+    fn fetch_individual_asset(&self, id: i64) -> SqlResult<Option<AssetData>> {
+        let conn = self.get_connection()?;
+
+        let result = conn.query_row(
+            "SELECT id, name, path, image_path, tags FROM individual_assets WHERE id = ?1",
+            params![id],
+            |row| Self::row_to_asset(row),
+        );
+
+        match result {
+            Ok(asset) => Ok(Some(asset)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn fetch_individual_assets_page(&self, offset: i64, limit: i64) -> SqlResult<Vec<AssetData>> {
+        let conn = self.get_connection()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, name, path, image_path, tags FROM individual_assets ORDER BY name COLLATE NOCASE LIMIT ?1 OFFSET ?2"
+        )?;
+
+        let assets = stmt.query_map(params![limit, offset], |row| Self::row_to_asset(row))?;
+        assets.collect()
+    }
+
+    fn remove_individual_asset(&self, id: i64) -> SqlResult<()> {
+        let conn = self.get_connection()?;
+        conn.execute("DELETE FROM individual_assets WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    fn search_individual(&self, query: &str, offset: i64, limit: i64) -> SqlResult<(Vec<AssetData>, i64)> {
+        let conn = self.get_connection()?;
+
+        // Parse query: separate regular terms from tag: terms
+        let mut general_terms: Vec<String> = Vec::new();
+        let mut tag_terms: Vec<String> = Vec::new();
+
+        for part in query.split_whitespace() {
+            if let Some(tag) = part.strip_prefix("tag:") {
+                if !tag.is_empty() {
+                    tag_terms.push(tag.to_string());
+                }
+            } else {
+                general_terms.push(part.to_string());
+            }
+        }
+
+        let mut conditions: Vec<String> = Vec::new();
+        let mut params_vec: Vec<String> = Vec::new();
+
+        for term in &general_terms {
+            let pattern = format!("%{}%", term);
+            let idx = params_vec.len() + 1;
+            conditions.push(format!("(name LIKE ?{} OR path LIKE ?{} OR tags LIKE ?{})", idx, idx, idx));
+            params_vec.push(pattern);
+        }
+
+        for tag in &tag_terms {
+            let pattern = format!("%{}%", tag);
+            let idx = params_vec.len() + 1;
+            conditions.push(format!("tags LIKE ?{}", idx));
+            params_vec.push(pattern);
+        }
+
+        if conditions.is_empty() {
+            return Ok((Vec::new(), 0));
+        }
+
+        let where_clause = conditions.join(" AND ");
+        let count_sql = format!("SELECT COUNT(*) FROM individual_assets WHERE {}", where_clause);
+        let search_sql = format!(
+            "SELECT id, name, path, image_path, tags FROM individual_assets WHERE {} ORDER BY name COLLATE NOCASE LIMIT ?{} OFFSET ?{}",
+            where_clause,
+            params_vec.len() + 1,
+            params_vec.len() + 2
+        );
+
+        let total_count: i64 = {
+            let mut stmt = conn.prepare(&count_sql)?;
+            let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+            stmt.query_row(params_refs.as_slice(), |row| row.get(0))?
+        };
+
+        let mut stmt = conn.prepare(&search_sql)?;
+        let mut all_params: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+        all_params.push(&limit);
+        all_params.push(&offset);
+
+        let assets = stmt.query_map(all_params.as_slice(), |row| Self::row_to_asset(row))?;
+        let assets_vec: SqlResult<Vec<AssetData>> = assets.collect();
+        Ok((assets_vec?, total_count))
+    }
+
+    fn scan_individual_directory(&self, base_path: String, extensions: Vec<String>) -> SqlResult<()> {
+        let image_extensions = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"];
+        let exts_lower: Vec<String> = extensions.iter().map(|e| e.to_lowercase()).collect();
+
+        for entry in WalkDir::new(&base_path)
+            .follow_links(false)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+
+            // Skip macOS resource-fork folders (and everything inside them)
+            if path.components().any(|c| c.as_os_str() == "__MACOSX") {
+                continue;
+            }
+
+            if !path.is_file() {
+                continue;
+            }
+
+            let ext = match path.extension() {
+                Some(e) => e.to_string_lossy().to_lowercase(),
+                None => continue,
+            };
+
+            if !exts_lower.contains(&ext) {
+                continue;
+            }
+
+            let path_str = path.to_string_lossy().to_string();
+
+            if self.is_deleted(&path_str) {
+                continue;
+            }
+
+            if self.individual_path_exists(&path_str) {
+                continue;
+            }
+
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "Unknown".to_string());
+
+            // An image file is its own preview; other file types have no preview image.
+            let image_path = if image_extensions.contains(&ext.as_str()) {
+                path_str.clone()
+            } else {
+                String::new()
+            };
+
+            let _ = self.insert_individual_asset(&name, &path_str, &image_path);
+        }
+
+        Ok(())
+    }
+
     fn asset_to_dict(&self, asset: &AssetData) -> VarDictionary {
         let mut dict = VarDictionary::new();
 
@@ -900,7 +1298,7 @@ impl AssetManager {
         for tag in &asset.tags {
             tags_array.push(&GString::from(tag.as_str()).to_variant());
         }
-        dict.set("tags", tags_array);
+        dict.set("tags", &tags_array);
 
         dict
     }
