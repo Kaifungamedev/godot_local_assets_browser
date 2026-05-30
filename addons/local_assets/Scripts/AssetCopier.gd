@@ -19,6 +19,33 @@ static func copy_file(src_path: String, dst_path: String) -> void:
 		printerr("LocalAssets: Failed to open destination file for writing: ", dst_path)
 
 
+static func copy_gltf_file(src_path: String, dst_path: String) -> void:
+	copy_file(src_path, dst_path)
+
+	var f := FileAccess.open(src_path, FileAccess.READ)
+	if not f:
+		return
+	var content := f.get_as_text()
+	f.close()
+
+	var json := JSON.new()
+	if json.parse(content) != OK:
+		return
+	var data = json.data
+	if not data is Dictionary:
+		return
+
+	var src_base := src_path.get_base_dir()
+	var dst_base := dst_path.get_base_dir()
+	for image in data.get("images", []):
+		if not image is Dictionary:
+			continue
+		var uri: String = image.get("uri", "")
+		if uri.is_empty() or uri.begins_with("data:"):
+			continue
+		copy_file(src_base.path_join(uri), dst_base.path_join(uri))
+
+
 static func copy_assets(src_path: String, dst_path: String) -> void:
 	var src_dir = DirAccess.open(src_path)
 	var dst_dir: DirAccess = DirAccess.open("res://")

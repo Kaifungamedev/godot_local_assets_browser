@@ -345,10 +345,12 @@ func copy_asset(dir: String, name: String):
 
 
 func copy_file(src_path: String, _name: String = ""):
-	var thread = Thread.new()
-	thread.start(
-		LocalAssetsAssetCopier.copy_file.bind(src_path, "res://Assets/%s" % src_path.get_file())
-	)
+	var dst_path := "res://Assets/%s" % src_path.get_file()
+	var thread := Thread.new()
+	if src_path.get_extension().to_lower() == "gltf":
+		thread.start(LocalAssetsAssetCopier.copy_gltf_file.bind(src_path, dst_path))
+	else:
+		thread.start(LocalAssetsAssetCopier.copy_file.bind(src_path, dst_path))
 	await _wait_for_thread(thread)
 	EditorInterface.get_resource_filesystem().scan()
 
