@@ -770,49 +770,6 @@ impl AssetManager {
         Ok(())
     }
 
-    fn is_deleted(&self, path: &str) -> bool {
-        let conn = match self.get_connection() {
-            Ok(c) => c,
-            Err(_) => return false,
-        };
-
-        let result: Result<i64, _> = conn.query_row(
-            "SELECT 1 FROM deleted WHERE path = ?1",
-            params![path],
-            |row| row.get(0),
-        );
-
-        result.is_ok()
-    }
-
-    fn path_exists_in_db(&self, path: &str) -> bool {
-        let conn = match self.get_connection() {
-            Ok(c) => c,
-            Err(_) => return false,
-        };
-
-        let result: Result<i64, _> = conn.query_row(
-            "SELECT 1 FROM assets WHERE path = ?1",
-            params![path],
-            |row| row.get(0),
-        );
-
-        result.is_ok()
-    }
-
-    fn remove_assets_in_subdirs(&self, parent_path: &str) -> SqlResult<usize> {
-        let conn = self.get_connection()?;
-        let pattern = format!("{}/%", parent_path);
-        let deleted = conn.execute(
-            "DELETE FROM assets WHERE path LIKE ?1",
-            params![pattern],
-        )?;
-        if deleted > 0 {
-            godot_print!("AssetManager: Removed {} assets from subdirectories of {}", deleted, parent_path);
-        }
-        Ok(deleted)
-    }
-
     fn search_assets(&self, query: &str, offset: i64, limit: i64) -> SqlResult<(Vec<AssetData>, i64)> {
         let conn = self.get_connection()?;
 
@@ -896,7 +853,34 @@ impl AssetManager {
     }
 
     fn scan_directory(&self, base_path: String) -> SqlResult<()> {
+        use std::collections::HashSet;
+
         let file_extensions = vec!["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"];
+
+        // Same single-connection / single-transaction strategy as scan_individual_directory:
+        // opening a fresh connection per directory and committing every INSERT on its own made
+        // a fresh scan of a large tree slow. Preload the deleted/existing paths once, then do
+        // all writes inside one transaction.
+        let mut conn = self.get_connection()?;
+        let _ = conn.execute_batch("PRAGMA synchronous = OFF; PRAGMA journal_mode = MEMORY;");
+
+        let mut deleted: HashSet<String> = HashSet::new();
+        {
+            let mut stmt = conn.prepare("SELECT path FROM deleted")?;
+            for row in stmt.query_map([], |row| row.get::<_, String>(0))?.flatten() {
+                deleted.insert(row);
+            }
+        }
+
+        let mut existing: HashSet<String> = HashSet::new();
+        {
+            let mut stmt = conn.prepare("SELECT path FROM assets")?;
+            for row in stmt.query_map([], |row| row.get::<_, String>(0))?.flatten() {
+                existing.insert(row);
+            }
+        }
+
+        let tx = conn.transaction()?;
 
         let mut walker = WalkDir::new(&base_path)
             .follow_links(false)
@@ -923,13 +907,13 @@ impl AssetManager {
             let path_str = path.to_string_lossy().to_string();
 
             // Check if already deleted
-            if self.is_deleted(&path_str) {
+            if deleted.contains(&path_str) {
                 walker.skip_current_dir();
                 continue;
             }
 
             // Check if path already exists in database - skip to speed up rescanning
-            if self.path_exists_in_db(&path_str) {
+            if existing.contains(&path_str) {
                 walker.skip_current_dir();
                 continue;
             }
@@ -939,18 +923,25 @@ impl AssetManager {
             let has_asset_json = asset_json.exists();
 
             if has_asset_json {
-                let _ = self.remove_assets_in_subdirs(&path_str);
+                // Remove any previously-indexed assets living in subdirectories of this pack.
+                // Within the open transaction this also sees rows inserted earlier in this scan.
+                let pattern = format!("{}/%", path_str);
+                if let Ok(removed) = tx.execute("DELETE FROM assets WHERE path LIKE ?1", params![pattern]) {
+                    if removed > 0 {
+                        godot_print!("AssetManager: Removed {} assets from subdirectories of {}", removed, path_str);
+                    }
+                }
 
                 if let Ok(content) = std::fs::read_to_string(&asset_json) {
                     let asset_json_data = serde_json::from_str::<AssetData>(&content).ok();
 
                     if let Some(ref data) = asset_json_data {
                         if !data.name.is_empty() && !data.path.is_empty() {
-                            let _ = self.insert_asset(
-                                &data.name,
-                                &data.path,
-                                data.image_path.as_deref(),
-                                &data.tags,
+                            let tags_json = serde_json::to_string(&data.tags)
+                                .unwrap_or_else(|_| "[]".to_string());
+                            let _ = tx.execute(
+                                "INSERT INTO assets (name, path, image_path, tags) VALUES (?1, ?2, ?3, ?4)",
+                                params![data.name, data.path, data.image_path.as_deref(), tags_json],
                             );
                             walker.skip_current_dir();
                             continue;
@@ -1068,15 +1059,22 @@ impl AssetManager {
             }
 
             if let Some(image_path) = final_image {
-                let _ = self.insert_asset(&folder_name, &path_str, Some(&image_path), &[]);
+                let _ = tx.execute(
+                    "INSERT INTO assets (name, path, image_path, tags) VALUES (?1, ?2, ?3, '[]')",
+                    params![folder_name, path_str, image_path],
+                );
                 walker.skip_current_dir();
             } else if has_asset_json {
                 // Insert asset even without an image if Asset.json exists
-                let _ = self.insert_asset(&folder_name, &path_str, None, &[]);
+                let _ = tx.execute(
+                    "INSERT INTO assets (name, path, image_path, tags) VALUES (?1, ?2, NULL, '[]')",
+                    params![folder_name, path_str],
+                );
                 walker.skip_current_dir();
             }
         }
 
+        tx.commit()?;
         Ok(())
     }
 
@@ -1097,32 +1095,6 @@ impl AssetManager {
             image_path,
             tags,
         })
-    }
-
-    fn individual_path_exists(&self, path: &str) -> bool {
-        let conn = match self.get_connection() {
-            Ok(c) => c,
-            Err(_) => return false,
-        };
-
-        let result: Result<i64, _> = conn.query_row(
-            "SELECT 1 FROM individual_assets WHERE path = ?1",
-            params![path],
-            |row| row.get(0),
-        );
-
-        result.is_ok()
-    }
-
-    fn insert_individual_asset(&self, name: &str, path: &str, image_path: &str) -> SqlResult<i64> {
-        let conn = self.get_connection()?;
-
-        conn.execute(
-            "INSERT INTO individual_assets (name, path, image_path, tags) VALUES (?1, ?2, ?3, '[]')",
-            params![name, path, image_path],
-        )?;
-
-        Ok(conn.last_insert_rowid())
     }
 
     fn fetch_individual_asset(&self, id: i64) -> SqlResult<Option<AssetData>> {
@@ -1221,58 +1193,94 @@ impl AssetManager {
     }
 
     fn scan_individual_directory(&self, base_path: String, extensions: Vec<String>) -> SqlResult<()> {
+        use std::collections::HashSet;
+
         let image_extensions = ["png", "jpeg", "jpg", "bmp", "tga", "webp", "svg"];
         let exts_lower: Vec<String> = extensions.iter().map(|e| e.to_lowercase()).collect();
 
-        for entry in WalkDir::new(&base_path)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(|e| e.ok())
+        // A large asset tree can hold tens of thousands of matching files. Opening a fresh
+        // connection per file (and committing each INSERT on its own) made this scan freeze
+        // the editor for minutes. Instead: open one connection, load the existing/deleted
+        // paths into memory once, and insert everything inside a single transaction.
+        let mut conn = self.get_connection()?;
+        let _ = conn.execute_batch("PRAGMA synchronous = OFF; PRAGMA journal_mode = MEMORY;");
+
+        let mut existing: HashSet<String> = HashSet::new();
         {
-            let path = entry.path();
-
-            // Skip macOS resource-fork folders (and everything inside them)
-            if path.components().any(|c| c.as_os_str() == "__MACOSX") {
-                continue;
+            let mut stmt = conn.prepare("SELECT path FROM individual_assets")?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            for row in rows.flatten() {
+                existing.insert(row);
             }
-
-            if !path.is_file() {
-                continue;
-            }
-
-            let ext = match path.extension() {
-                Some(e) => e.to_string_lossy().to_lowercase(),
-                None => continue,
-            };
-
-            if !exts_lower.contains(&ext) {
-                continue;
-            }
-
-            let path_str = path.to_string_lossy().to_string();
-
-            if self.is_deleted(&path_str) {
-                continue;
-            }
-
-            if self.individual_path_exists(&path_str) {
-                continue;
-            }
-
-            let name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| "Unknown".to_string());
-
-            // An image file is its own preview; other file types have no preview image.
-            let image_path = if image_extensions.contains(&ext.as_str()) {
-                path_str.clone()
-            } else {
-                String::new()
-            };
-
-            let _ = self.insert_individual_asset(&name, &path_str, &image_path);
         }
+
+        let mut deleted: HashSet<String> = HashSet::new();
+        {
+            let mut stmt = conn.prepare("SELECT path FROM deleted")?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            for row in rows.flatten() {
+                deleted.insert(row);
+            }
+        }
+
+        let tx = conn.transaction()?;
+        {
+            let mut insert = tx.prepare(
+                "INSERT INTO individual_assets (name, path, image_path, tags) VALUES (?1, ?2, ?3, '[]')",
+            )?;
+
+            for entry in WalkDir::new(&base_path)
+                .follow_links(false)
+                .into_iter()
+                .filter_map(|e| e.ok())
+            {
+                let path = entry.path();
+
+                // Skip macOS resource-fork folders (and everything inside them)
+                if path.components().any(|c| c.as_os_str() == "__MACOSX") {
+                    continue;
+                }
+
+                if !path.is_file() {
+                    continue;
+                }
+
+                let ext = match path.extension() {
+                    Some(e) => e.to_string_lossy().to_lowercase(),
+                    None => continue,
+                };
+
+                if !exts_lower.contains(&ext) {
+                    continue;
+                }
+
+                let path_str = path.to_string_lossy().to_string();
+
+                if deleted.contains(&path_str) {
+                    continue;
+                }
+
+                // Skip duplicates (and remember this path so repeats within the walk are skipped too)
+                if !existing.insert(path_str.clone()) {
+                    continue;
+                }
+
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "Unknown".to_string());
+
+                // An image file is its own preview; other file types have no preview image.
+                let image_path = if image_extensions.contains(&ext.as_str()) {
+                    path_str.clone()
+                } else {
+                    String::new()
+                };
+
+                let _ = insert.execute(params![name, path_str, image_path]);
+            }
+        }
+        tx.commit()?;
 
         Ok(())
     }

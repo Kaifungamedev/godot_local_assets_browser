@@ -1,6 +1,13 @@
 @tool
 class_name LocalAssets extends Control
 
+enum ViewMode { PACKS, INDIVIDUAL }
+
+## File extensions scanned when listing individual assets (single files).
+const INDIVIDUAL_ASSET_EXTENSIONS := [
+	"png", "jpg", "jpeg", "obj", "fbx", "glb", "gltf", "wav", "ogg", "mp3"
+]
+
 var editor_settings: EditorSettings = EditorInterface.get_editor_settings()
 var file_names: PackedStringArray
 var use_first_image: bool
@@ -10,14 +17,23 @@ var uniform_image_size: Vector2i
 var asset_manager: AssetManager
 var page_size: int = 50
 var item_scene = load("res://addons/local_assets/Components/Item/Item.tscn")
+var asset_item_scene = load("res://addons/local_assets/Components/asset_item/asset_item.tscn")
+var view_mode: int = ViewMode.PACKS
+var _scanned_modes: Dictionary = {}
+var model_previewer: LocalAssetsModelPreviewer
+var preview_window: LocalAssetsPreviewWindow
 
 @onready var files_dialog: FileDialog = $FileDialog
 @onready var asset_path_edit: LineEdit = %AssetsPath
 @onready var grid: GridContainer = %GridContainer
 @onready var background_text = %BackgroundText
-@onready
-var db_path: String = EditorInterface.get_editor_paths().get_data_dir().path_join("assets.db")
+@onready var db_path: String = (
+	EditorInterface.get_editor_paths()
+	.get_data_dir()
+	.path_join("assets.db")
+)
 @onready var asset_editor: LocalAssetsAssetEditor = $VSplitContainer/AssetEditor
+@onready var view_tabs: TabBar = %ViewTabs
 
 
 func _ready():
@@ -25,6 +41,7 @@ func _ready():
 	$VSplitContainer/VBoxContainer/TopBar/path/OpenDir.icon = (
 		EditorInterface.get_editor_theme().get_icon("Folder", "EditorIcons")
 	)
+	_setup_previews()
 	_setup_settings()
 	_on_editor_settings_changed()
 
@@ -75,6 +92,59 @@ func edit_asset(id: int, item: LocalAssetsItem):
 	$VSplitContainer.queue_sort()
 
 
+
+func _setup_previews():
+	model_previewer = LocalAssetsModelPreviewer.new()
+	add_child(model_previewer)
+	preview_window = LocalAssetsPreviewWindow.new()
+	add_child(preview_window)
+
+
+func open_preview(path: String, asset_name: String) -> void:
+	if preview_window != null:
+		preview_window.show_asset(path, asset_name)
+
+
+func _on_view_tabs_tab_changed(tab: int):
+	view_mode = tab
+	%Search.text = ""
+	clear_items()
+	if asset_path_edit.text.is_empty():
+		background_text.text = "No path selected"
+		background_text.show()
+		grid.hide()
+		return
+	# The database is persisted, so only walk the filesystem when this mode has no
+	# data yet. Re-scanning on every switch would freeze the UI for several seconds.
+	var already_scanned: bool = _scanned_modes.get(view_mode, false)
+	var should_scan: bool = not already_scanned and _get_total_count() == 0
+	load_assets(should_scan)
+
+
+func _get_page(page: int) -> Dictionary:
+	if view_mode == ViewMode.INDIVIDUAL:
+		return asset_manager.get_individual_assets(page)
+	return asset_manager.get_assets(page)
+
+
+func _search_page(query: String, page: int) -> Dictionary:
+	if view_mode == ViewMode.INDIVIDUAL:
+		return asset_manager.search_individual_assets(query, page)
+	return asset_manager.search(query, page)
+
+
+func _get_total_count() -> int:
+	if view_mode == ViewMode.INDIVIDUAL:
+		return asset_manager.get_individual_asset_count()
+	return asset_manager.get_asset_count()
+
+
+func _get_total_pages() -> int:
+	if view_mode == ViewMode.INDIVIDUAL:
+		return asset_manager.get_individual_asset_pages()
+	return asset_manager.get_pages()
+
+
 func _setup_settings():
 	if not editor_settings.has_setting("Local_Assets/asset_dir"):
 		_set_editor_setting("Local_Assets/asset_dir", "", TYPE_STRING)
@@ -116,6 +186,7 @@ func _on_open_dir_pressed():
 
 
 func _on_assets_path_changed(new_text: String):
+	_scanned_modes.clear()
 	clear_items()
 	if new_text.is_empty():
 		background_text.text = "No path selected"
@@ -134,7 +205,7 @@ func search(search_string: String):
 
 	clear_items()
 
-	var results = asset_manager.search(search_string, 1)
+	var results = _search_page(search_string, 1)
 
 	if asset_manager.get_error() != OK:
 		background_text.text = "Search failed"
@@ -161,29 +232,35 @@ func clear_items():
 		child.queue_free()
 
 
-func load_assets():
+func load_assets(scan: bool = true):
 	print_verbose("LocalAssets: scanning for assets")
 	background_text.text = "Loading..."
 	grid.hide()
 	background_text.show()
 
-	var thread = Thread.new()
-	thread.start(_scan_assets_thread.bind(asset_path_edit.text))
-	await _wait_for_thread(thread)
+	if scan:
+		# The AssetManager extension must only be called from the main thread.
+		# Running the scan on a Thread let the instance be freed mid-call, which
+		# crashes godot-rust ("Destroyed an object ... while a bind() was active").
+		await get_tree().process_frame
+		if asset_manager == null:
+			return
+		_scan_assets(asset_path_edit.text)
+		_scanned_modes[view_mode] = true
 
-	if asset_manager.get_error() != OK:
-		background_text.text = "Failed to scan directory"
-		return
+		if asset_manager.get_error() != OK:
+			background_text.text = "Failed to scan directory"
+			return
 
-	var total_count = asset_manager.get_asset_count()
+	var total_count = _get_total_count()
 
 	if total_count == 0:
 		background_text.text = "No assets found."
 		return
 
-	update_pagination_bars(asset_manager.get_pages())
+	update_pagination_bars(_get_total_pages())
 
-	var page_data = asset_manager.get_assets(1)
+	var page_data = _get_page(1)
 
 	if asset_manager.get_error() == OK and not page_data.assets.is_empty():
 		add_items(page_data.assets)
@@ -194,11 +271,21 @@ func load_assets():
 		background_text.text = "Failed to load assets"
 
 
-func _scan_assets_thread(path: String):
-	asset_manager.find_assets(path)
+func _scan_assets(path: String):
+	if view_mode == ViewMode.INDIVIDUAL:
+		asset_manager.find_individual_assets(path, PackedStringArray(INDIVIDUAL_ASSET_EXTENSIONS))
+	else:
+		asset_manager.find_assets(path)
 
 
 func add_items(items: Array):
+	if view_mode == ViewMode.INDIVIDUAL:
+		_add_individual_items(items)
+	else:
+		_add_pack_items(items)
+
+
+func _add_pack_items(items: Array):
 	for i in items:
 		var asset_item: LocalAssetsItem = item_scene.instantiate()
 		if asset_item:
@@ -213,17 +300,35 @@ func add_items(items: Array):
 				asset_item.asset_icon = Image.load_from_file(img_path)
 
 			asset_item.update()
-			grid.add_child(asset_item)
+			grid.call_deferred("add_child",asset_item)
+
+
+func _add_individual_items(items: Array):
+	for i in items:
+		var asset_item: LocalAssetsAssetItem = asset_item_scene.instantiate()
+		if asset_item:
+			asset_item.root = self
+			asset_item.asset = i
+			asset_item.id = i.get("id", 0)
+			asset_item.asset_name = i.get("name", "")
+			asset_item.asset_path = i.get("path", "")
+
+			var img_path = i.get("image_path", "")
+			if not img_path.is_empty():
+				asset_item.asset_icon = Image.load_from_file(img_path)
+
+			asset_item.update()
+			grid.call_deferred("add_child",asset_item)
 
 
 func _on_pagination_bar_page_changed(new_page: int):
 	clear_items()
-	var page_data = asset_manager.get_assets(new_page)
+	var page_data = _get_page(new_page)
 	if asset_manager.get_error() == OK:
 		add_items(page_data.assets)
 	var pagebars = get_tree().get_nodes_in_group("PageBarLocalAssets_sdlakjf")
 	for bar: LocalAssetsPaginationBar in pagebars:
-		bar.on_page_button_pressed(new_page,true)
+		bar.on_page_button_pressed(new_page, true)
 
 
 func _notification(what: int) -> void:
@@ -235,6 +340,15 @@ func _notification(what: int) -> void:
 func copy_asset(dir: String, name: String):
 	var thread = Thread.new()
 	thread.start(LocalAssetsAssetCopier.copy_assets.bind(dir, "res://Assets/%s" % name))
+	await _wait_for_thread(thread)
+	EditorInterface.get_resource_filesystem().scan()
+
+
+func copy_file(src_path: String, _name: String = ""):
+	var thread = Thread.new()
+	thread.start(
+		LocalAssetsAssetCopier.copy_file.bind(src_path, "res://Assets/%s" % src_path.get_file())
+	)
 	await _wait_for_thread(thread)
 	EditorInterface.get_resource_filesystem().scan()
 
@@ -267,6 +381,7 @@ func _reset_db():
 	asset_manager.set_use_folder_name(use_folder_name)
 	asset_manager.set_page_size(page_size)
 
+	_scanned_modes.clear()
 	clear_items()
 	if not asset_path_edit.text.is_empty():
 		load_assets()

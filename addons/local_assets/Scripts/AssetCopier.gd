@@ -2,6 +2,23 @@
 class_name LocalAssetsAssetCopier extends RefCounted
 
 
+static func copy_file(src_path: String, dst_path: String) -> void:
+	if not FileAccess.file_exists(src_path):
+		printerr("LocalAssets: Failed to open source file for reading: ", src_path)
+		return
+	var dst_dir: DirAccess = DirAccess.open("res://")
+	var dst_base_dir = dst_path.get_base_dir()
+	if dst_dir and not dst_dir.dir_exists(dst_base_dir):
+		dst_dir.make_dir_recursive(dst_base_dir)
+	var file_data = FileAccess.get_file_as_bytes(src_path)
+	var file = FileAccess.open(dst_path, FileAccess.WRITE)
+	if file and file.get_error() == OK:
+		file.store_buffer(file_data)
+		file.close()
+	else:
+		printerr("LocalAssets: Failed to open destination file for writing: ", dst_path)
+
+
 static func copy_assets(src_path: String, dst_path: String) -> void:
 	var src_dir = DirAccess.open(src_path)
 	var dst_dir: DirAccess = DirAccess.open("res://")
